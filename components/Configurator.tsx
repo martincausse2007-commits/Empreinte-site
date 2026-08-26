@@ -1,12 +1,24 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { LogoUploader } from "./LogoUploader";
 import { ProductCard } from "./ProductCard";
 import { PhoneStandMockup } from "./mockups/PhoneStandMockup";
 import { PlacematMockup } from "./mockups/PlacematMockup";
 import { MenuDisplayMockup } from "./mockups/MenuDisplayMockup";
-import { WineHolderMockup } from "./mockups/WineHolderMockup";
+
+const WineBottleScene = dynamic(
+  () => import("./three/WineBottleScene").then((mod) => mod.WineBottleScene),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full w-full items-center justify-center text-sm text-stone-400">
+        Rendu 3D en cours de chargement…
+      </div>
+    ),
+  },
+);
 
 export function Configurator() {
   const [logoSrc, setLogoSrc] = useState<string | null>(null);
@@ -66,10 +78,10 @@ export function Configurator() {
 
         <ProductCard
           title="Porte-bouteille de vin personnalisé"
-          description="Berceau en impression 3D avec médaillon logo sur la face avant."
-          zone="Impression couleur · médaillon"
+          description="Socle en impression 3D avec médaillon logo gravé — rendu 3D, faites-le pivoter."
+          zone="Rendu 3D · médaillon gravé"
         >
-          <WineHolderMockup logoSrc={logoSrc} />
+          <WineBottleScene logoSrc={logoSrc} />
         </ProductCard>
       </section>
     </div>
