@@ -1,116 +1,120 @@
 import * as THREE from "three";
 
-function roundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-/** Génère une texture de grain de bois procédurale (aucun asset externe). */
-export function createWoodTexture() {
-  const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 512;
-  const ctx = canvas.getContext("2d");
-  if (ctx) {
-    const grad = ctx.createLinearGradient(0, 0, 512, 0);
-    grad.addColorStop(0, "#6b4423");
-    grad.addColorStop(0.5, "#8a5c30");
-    grad.addColorStop(1, "#5a3820");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 512, 512);
-
-    for (let i = 0; i < 110; i++) {
-      const y = Math.random() * 512;
-      ctx.globalAlpha = 0.12 + Math.random() * 0.18;
-      ctx.strokeStyle = Math.random() > 0.5 ? "#3d2412" : "#a97a45";
-      ctx.lineWidth = 0.5 + Math.random() * 1.4;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      for (let x = 0; x <= 512; x += 24) {
-        ctx.lineTo(x, y + (Math.random() - 0.5) * 8);
-      }
-      ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
+export const LABEL_WIDTH = 420;
+export const LABEL_HEIGHT = 620;
 
 /**
- * Dessine un logo (ou un placeholder) sur une texture canvas existante,
- * de façon synchrone si `logoSrc` est déjà chargeable, sinon via callback.
+ * Dessine une étiquette de bouteille (logo + hiérarchie de texte type
+ * étiquette de vin) sur un canvas existant. Le chargement du logo étant
+ * asynchrone, `onDone` est appelé une fois le rendu terminé.
  */
-export function paintLogoOnCanvas(
+export function paintWineLabel(
   canvas: HTMLCanvasElement,
   logoSrc: string | null,
-  shape: "label" | "medallion",
   onDone: () => void,
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-  const size = canvas.width;
+  const w = canvas.width;
+  const h = canvas.height;
 
-  const drawBase = () => {
-    ctx.clearRect(0, 0, size, size);
-    if (shape === "label") {
-      ctx.fillStyle = "#f7f3e8";
-      roundRect(ctx, size * 0.08, size * 0.08, size * 0.84, size * 0.84, size * 0.03);
-      ctx.fill();
-      ctx.strokeStyle = "#caa14d";
-      ctx.lineWidth = size * 0.006;
-      roundRect(ctx, size * 0.08, size * 0.08, size * 0.84, size * 0.84, size * 0.03);
-      ctx.stroke();
+  const drawText = () => {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+
+    // liseré fin
+    ctx.strokeStyle = "#d9d2c0";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(10, 10, w - 20, h - 20);
+
+    // titre
+    ctx.fillStyle = "#232018";
+    ctx.textAlign = "center";
+    ctx.font = `700 ${Math.round(w * 0.088)}px Georgia, 'Times New Roman', serif`;
+    ctx.fillText("CUVÉE DE LA MAISON", w / 2, h * 0.62);
+
+    // sous-titre
+    ctx.fillStyle = "#6b6350";
+    ctx.font = `600 ${Math.round(w * 0.038)}px Georgia, serif`;
+    ctx.save();
+    ctx.textBaseline = "alphabetic";
+    const letterSpaced = (text: string, y: number, spacing: number) => {
+      const totalWidth = [...text].reduce((acc, ch) => acc + ctx.measureText(ch).width + spacing, -spacing);
+      let x = w / 2 - totalWidth / 2;
+      for (const ch of text) {
+        ctx.fillText(ch, x + ctx.measureText(ch).width / 2, y);
+        x += ctx.measureText(ch).width + spacing;
+      }
+    };
+    letterSpaced("ÉDITION PERSONNALISÉE", h * 0.685, 3);
+    ctx.restore();
+
+    // ligne de séparation
+    ctx.strokeStyle = "#caa14d";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(w * 0.28, h * 0.735);
+    ctx.lineTo(w * 0.72, h * 0.735);
+    ctx.stroke();
+
+    // mentions bas d'étiquette
+    ctx.fillStyle = "#6b6350";
+    ctx.font = `${Math.round(w * 0.034)}px Georgia, serif`;
+    ctx.fillText("Mise en bouteille pour votre établissement", w / 2, h * 0.85);
+    ctx.fillText("750 ml", w / 2, h * 0.885);
+
+    // sceau décoratif
+    ctx.strokeStyle = "#caa14d";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(w / 2, h * 0.95, w * 0.045, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "#caa14d";
+    ctx.font = `${Math.round(w * 0.04)}px Georgia, serif`;
+    ctx.fillText("★", w / 2, h * 0.962);
+  };
+
+  const drawLogo = (img: HTMLImageElement | null) => {
+    drawText();
+    const boxSize = w * 0.4;
+    const boxX = w / 2 - boxSize / 2;
+    const boxY = h * 0.1;
+    if (img) {
+      const scale = Math.min(boxSize / img.width, boxSize / img.height);
+      const iw = img.width * scale;
+      const ih = img.height * scale;
+      ctx.drawImage(img, w / 2 - iw / 2, boxY + boxSize / 2 - ih / 2, iw, ih);
     } else {
-      ctx.fillStyle = "#e9d9ab";
-      ctx.beginPath();
-      ctx.arc(size / 2, size / 2, size * 0.46, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#8a6d2c";
-      ctx.lineWidth = size * 0.02;
-      ctx.beginPath();
-      ctx.arc(size / 2, size / 2, size * 0.44, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.strokeStyle = "#d9d2c0";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 6]);
+      ctx.strokeRect(boxX, boxY, boxSize, boxSize);
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#b8ad94";
+      ctx.font = `${Math.round(w * 0.045)}px Georgia, serif`;
+      ctx.fillText("Logo", w / 2, boxY + boxSize / 2 + w * 0.015);
     }
   };
 
   if (!logoSrc) {
-    drawBase();
-    ctx.fillStyle = shape === "label" ? "#b8ad94" : "#8a7a4c";
-    ctx.font = `${Math.round(size * 0.09)}px Georgia, serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("Logo", size / 2, size / 2);
+    drawLogo(null);
     onDone();
     return;
   }
 
   const img = new Image();
   img.onload = () => {
-    drawBase();
-    const pad = shape === "label" ? size * 0.22 : size * 0.16;
-    const maxW = size - pad * 2;
-    const maxH = size - pad * 2;
-    const scale = Math.min(maxW / img.width, maxH / img.height);
-    const w = img.width * scale;
-    const h = img.height * scale;
-    ctx.drawImage(img, size / 2 - w / 2, size / 2 - h / 2, w, h);
+    drawLogo(img);
     onDone();
   };
   img.src = logoSrc;
+}
+
+export function createLabelTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = LABEL_WIDTH;
+  canvas.height = LABEL_HEIGHT;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
 }
