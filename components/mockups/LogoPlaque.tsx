@@ -80,36 +80,66 @@ export function LogoPlaque({
     );
   }
 
+  const ix = x + padding;
+  const iy = y + padding;
+  const iw = width - padding * 2;
+  const ih = height - padding * 2;
+
   return (
     <g>
       <clipPath id={clipId}>{clipShape}</clipPath>
-      <g
-        clipPath={`url(#${clipId})`}
-        style={
-          effect === "engrave"
-            ? {
-                filter: "grayscale(1) contrast(1.35) brightness(0.8)",
+      <g clipPath={`url(#${clipId})`}>
+        {effect === "engrave" ? (
+          <>
+            {/* creux gravé : ombre portée décalée */}
+            <image
+              href={logoSrc}
+              x={ix + 1}
+              y={iy + 1.4}
+              width={iw}
+              height={ih}
+              preserveAspectRatio="xMidYMid meet"
+              style={{ filter: "grayscale(1) brightness(0) blur(0.3px)", opacity: 0.55 }}
+            />
+            {/* corps de la gravure, assombri et fondu dans la matière */}
+            <image
+              href={logoSrc}
+              x={ix}
+              y={iy}
+              width={iw}
+              height={ih}
+              preserveAspectRatio="xMidYMid meet"
+              style={{
+                filter: "grayscale(1) contrast(1.5) brightness(0.35)",
                 mixBlendMode: "multiply",
-              }
-            : undefined
-        }
-      >
-        <rect
-          x={x - padding}
-          y={y - padding}
-          width={width + padding * 2}
-          height={height + padding * 2}
-          fill={effect === "engrave" ? "#e7e0d4" : "white"}
-          opacity={effect === "engrave" ? 1 : 0}
-        />
-        <image
-          href={logoSrc}
-          x={x + padding}
-          y={y + padding}
-          width={width - padding * 2}
-          height={height - padding * 2}
-          preserveAspectRatio="xMidYMid meet"
-        />
+                opacity: 0.92,
+              }}
+            />
+            {/* liseré clair : arête relevée par la gravure laser */}
+            <image
+              href={logoSrc}
+              x={ix - 0.8}
+              y={iy - 0.8}
+              width={iw}
+              height={ih}
+              preserveAspectRatio="xMidYMid meet"
+              style={{
+                filter: "grayscale(1) brightness(4)",
+                mixBlendMode: "screen",
+                opacity: 0.3,
+              }}
+            />
+          </>
+        ) : (
+          <image
+            href={logoSrc}
+            x={ix}
+            y={iy}
+            width={iw}
+            height={ih}
+            preserveAspectRatio="xMidYMid meet"
+          />
+        )}
       </g>
     </g>
   );
