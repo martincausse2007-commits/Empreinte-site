@@ -25,14 +25,17 @@ export function Configurator() {
   const [logoName, setLogoName] = useState<string | null>(null);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 py-12 sm:px-10">
-      <header className="flex flex-col gap-2">
-        <p className="text-sm font-medium uppercase tracking-widest text-amber-700">
-          Configurateur de démonstration
+    <section
+      id="produits"
+      className="mx-auto flex w-full max-w-6xl scroll-mt-20 flex-col gap-10 px-6 py-20 sm:px-10"
+    >
+      <header className="flex flex-col gap-3">
+        <p className="text-sm font-medium uppercase tracking-[0.2em] text-amber-700">
+          Produits &amp; configurateur
         </p>
-        <h1 className="text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl">
+        <h2 className="font-display text-3xl tracking-tight text-stone-900 sm:text-4xl">
           Votre logo, imprimé sur toute votre vaisselle
-        </h1>
+        </h2>
         <p className="max-w-2xl text-stone-600">
           Importez le logo de votre restaurant et voyez-le appliqué instantanément sur
           plusieurs produits imprimés en 3D. Aucune donnée n&apos;est envoyée à un
@@ -84,6 +87,6 @@ export function Configurator() {
           <WineBottleScene logoSrc={logoSrc} />
         </ProductCard>
       </section>
-    </div>
+    </section>
   );
 }

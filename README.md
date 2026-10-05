@@ -5,6 +5,16 @@ personnalisés pour restaurants. On importe le logo d'un restaurant et il
 est appliqué automatiquement sur des mockups de plusieurs produits pour
 montrer visuellement l'identité de marque appliquée à la vaisselle.
 
+## Structure du site
+
+Page unique (`app/page.tsx`) composée des sections de `components/site/` :
+en-tête avec menu mobile, accueil, produits + configurateur
+(`components/Configurator.tsx`), fonctionnement, atouts, FAQ, formulaire de
+contact et pied de page. Les coordonnées (nom, e-mail…) sont centralisées dans
+`lib/site.ts` — **remplacez l'adresse e-mail d'exemple avant la mise en ligne**.
+Le formulaire de contact n'a pas de backend : il ouvre la messagerie du
+visiteur avec la demande pré-remplie (`mailto:`).
+
 ## Produits illustrés
 
 - Support smartphone de table (logo imprimé en couleur, face avant)

@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fraunces, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
   subsets: ["latin"],
 });
 
@@ -13,18 +18,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Empreinte — Configurateur de démonstration",
+  title: "Empreinte — Objets de table imprimés en 3D pour restaurants",
   description:
-    "Configurateur de démonstration : appliquez le logo de votre restaurant sur des mockups de produits imprimés en 3D.",
+    "Supports, sets de table, présentoirs et porte-bouteilles imprimés en 3D et personnalisés avec le logo de votre restaurant. Essayez le configurateur en ligne.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="fr"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full scroll-smooth antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col bg-stone-100 font-sans text-stone-900">{children}</body>
     </html>
   );
 }
