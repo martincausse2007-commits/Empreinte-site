@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#b5532a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Empire de la Revente</title>
+<style>
+  :root{
+    --kraft:#f3e3c3;
+    --kraft2:#ead3a6;
+    --cream:#fff8ea;
+    --brown:#5a3a22;
+    --brown2:#7a5436;
+    --rust:#c4572b;
+    --rust-d:#9a3f1c;
+    --mustard:#e9b23a;
+    --mustard-d:#c48f1c;
+    --teal:#2f8f83;
+    --teal-d:#1f6b61;
+    --rose:#e07a8a;
+    --green:#4c9a4a;
+    --shadow:0 4px 0 rgba(90,58,34,.35);
+  }
+  [hidden]{display:none!important}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:"Trebuchet MS","Segoe UI",system-ui,-apple-system,sans-serif;
+    color:var(--brown);
+    background-color:var(--kraft);
+    background-image:
+      radial-gradient(rgba(122,84,54,.10) 1px, transparent 1.5px),
+      radial-gradient(rgba(122,84,54,.07) 1px, transparent 1.5px);
+    background-size:22px 22px, 31px 31px;
+    background-position:0 0, 11px 15px;
+    min-height:100vh;
+    overscroll-behavior:none;
+    touch-action:manipulation;
+    -webkit-user-select:none;user-select:none;
+    padding-bottom:calc(24px + env(safe-area-inset-bottom));
+  }
+  button{font-family:inherit;touch-action:manipulation;cursor:pointer}
+
+  /* ---------- En-tête ---------- */
+  header{
+    position:sticky;top:0;z-index:20;
+    background:var(--cream);
+    box-shadow:0 3px 0 rgba(90,58,34,.25);
+    padding-top:env(safe-area-inset-top);
+  }
+  .awning{
+    height:22px;
+    background:repeating-linear-gradient(90deg,var(--rust) 0 28px,var(--cream) 28px 56px);
+    position:relative;
+  }
+  .awning::after{
+    content:"";position:absolute;left:0;right:0;bottom:-10px;height:10px;
+    background:
+      radial-gradient(circle at 14px 0,var(--rust) 13px,transparent 14px) 0 0/56px 10px repeat-x,
+      radial-gradient(circle at 42px 0,var(--cream) 13px,transparent 14px) 0 0/56px 10px repeat-x;
+  }
+  .hud{padding:16px 16px 10px;text-align:center}
+  .title{
+    font-family:Georgia,"Times New Roman",serif;font-weight:bold;
+    font-size:15px;letter-spacing:2px;text-transform:uppercase;color:var(--rust-d);
+    margin:2px 0 4px;
+  }
+  .money{font-size:38px;font-weight:900;line-height:1.05;color:var(--brown);
+    text-shadow:0 2px 0 var(--kraft2)}
+  .money.pop{animation:pop .18s ease-out}
+  @keyframes pop{50%{transform:scale(1.06)}}
+  .rates{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .chip{background:var(--kraft);border:2px solid var(--kraft2);border-radius:999px;
+    padding:3px 10px;font-size:13px;font-weight:bold;white-space:nowrap}
+  .chip.boost{background:var(--mustard);border-color:var(--mustard-d);color:#4a2e00;animation:pulse 1s infinite}
+  @keyframes pulse{50%{transform:scale(1.05)}}
+
+  main{max-width:520px;margin:0 auto;padding:16px}
+
+  /* ---------- Bouton vendre ---------- */
+  .sellWrap{display:flex;justify-content:center;margin:6px 0 14px}
+  #sell{
+    width:min(78vw,280px);height:min(78vw,280px);max-height:260px;max-width:260px;
+    border-radius:50%;border:6px solid var(--rust-d);
+    background:radial-gradient(circle at 35% 30%,#f08a55,var(--rust) 60%,var(--rust-d));
+    color:#fff;box-shadow:0 10px 0 var(--rust-d),0 16px 22px rgba(90,58,34,.35);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+    font-weight:900;font-size:24px;text-shadow:0 2px 0 rgba(0,0,0,.25);
+    transition:transform .06s, box-shadow .06s;
+  }
+  #sell .big{font-size:64px;line-height:1;filter:drop-shadow(0 3px 0 rgba(0,0,0,.2))}
+  #sell .small{font-size:15px;font-weight:bold;opacity:.95}
+  #sell.down{transform:translateY(8px) scale(.97);box-shadow:0 2px 0 var(--rust-d),0 6px 10px rgba(90,58,34,.35)}
+
+  /* ---------- Pub ---------- */
+  #adBtn{
+    width:100%;min-height:62px;border:none;border-radius:18px;
+    background:var(--mustard);color:#4a2e00;font-size:17px;font-weight:900;
+    box-shadow:0 5px 0 var(--mustard-d);padding:10px 14px;margin-bottom:18px;
+  }
+  #adBtn:active{transform:translateY(4px);box-shadow:0 1px 0 var(--mustard-d)}
+  #adBtn small{display:block;font-weight:bold;font-size:13px;opacity:.85}
+
+  /* ---------- Mode d'achat ---------- */
+  .sectionTitle{font-family:Georgia,serif;font-size:21px;font-weight:bold;margin:8px 0 10px;
+    display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .seg{display:flex;background:var(--cream);border-radius:14px;padding:3px;box-shadow:var(--shadow)}
+  .seg button{border:none;background:transparent;font-weight:900;color:var(--brown2);
+    min-width:46px;min-height:40px;border-radius:11px;font-size:15px}
+  .seg button.on{background:var(--teal);color:#fff}
+
+  /* ---------- Cartes business ---------- */
+  .card{
+    background:var(--cream);border-radius:20px;padding:12px;margin-bottom:14px;
+    box-shadow:0 5px 0 rgba(90,58,34,.30);border:2px solid var(--kraft2);
+    position:relative;
+  }
+  .card.locked .top{opacity:.55}
+  .top{display:flex;gap:12px;align-items:center}
+  .ico{
+    flex:0 0 72px;height:72px;border-radius:18px;border:none;
+    background:linear-gradient(160deg,var(--kraft),var(--kraft2));
+    font-size:40px;position:relative;box-shadow:0 4px 0 var(--brown2);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .ico:active{transform:translateY(3px);box-shadow:0 1px 0 var(--brown2)}
+  .ico.idle{animation:wiggle 1.4s infinite}
+  @keyframes wiggle{0%,80%,100%{transform:rotate(0)}85%{transform:rotate(-8deg)}90%{transform:rotate(8deg)}95%{transform:rotate(-4deg)}}
+  .cnt{position:absolute;right:-6px;bottom:-6px;background:var(--teal);color:#fff;
+    font-size:14px;font-weight:900;border-radius:999px;padding:2px 8px;border:2px solid var(--cream);min-width:28px}
+  .info{flex:1;min-width:0}
+  .name{font-weight:900;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar{position:relative;height:30px;border-radius:10px;background:#e9dcc2;margin:6px 0 4px;overflow:hidden;
+    border:2px solid var(--kraft2)}
+  .fill{position:absolute;inset:0;background:linear-gradient(90deg,var(--green),#7cc46a);
+    transform-origin:left;transform:scaleX(0)}
+  .barTxt{position:relative;display:flex;height:100%;align-items:center;justify-content:center;
+    font-weight:900;font-size:14px;color:var(--brown);text-shadow:0 1px 0 rgba(255,255,255,.6)}
+  .sub{font-size:12px;color:var(--brown2);font-weight:bold}
+  .btns{display:flex;gap:8px;margin-top:10px}
+  .btn{
+    border:none;border-radius:14px;min-height:58px;font-weight:900;font-size:15px;line-height:1.2;
+    padding:6px 8px;color:#fff;
+  }
+  .btn b{display:block;font-size:16px}
+  .buy{flex:1.7;background:var(--teal);box-shadow:0 4px 0 var(--teal-d)}
+  .mgr{flex:1;background:var(--rose);box-shadow:0 4px 0 #b4566a}
+  .btn:active:not(:disabled){transform:translateY(3px);box-shadow:none}
+  .btn:disabled{background:#cbbfa8;box-shadow:0 4px 0 #a99c84;color:#f7f0e0}
+  .mgrOn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+    background:#fbe9ec;border:2px dashed var(--rose);border-radius:14px;min-height:58px;
+    font-size:13px;font-weight:900;color:#a3475b;text-align:center;padding:4px}
+  .mystery .top{filter:grayscale(1);opacity:.45}
+
+  /* ---------- Prestige ---------- */
+  .prestige{
+    background:linear-gradient(160deg,#4b2c5e,#2e1a3d);color:#fff4d6;border-radius:22px;
+    padding:16px;margin-top:22px;box-shadow:0 6px 0 #1d1027;text-align:center;
+  }
+  .prestige h2{font-family:Georgia,serif;margin:0 0 6px;font-size:22px}
+  .prestige p{margin:6px 0;font-size:14px;line-height:1.4}
+  .pbar{height:14px;background:rgba(255,255,255,.15);border-radius:999px;overflow:hidden;margin:10px 0}
+  .pbar div{height:100%;background:linear-gradient(90deg,var(--mustard),#ffe08a);width:0}
+  #prestigeBtn{width:100%;min-height:60px;border:none;border-radius:16px;font-size:17px;font-weight:900;
+    background:var(--mustard);color:#3a2400;box-shadow:0 5px 0 var(--mustard-d);margin-top:6px}
+  #prestigeBtn:disabled{background:#6b5a78;color:#cbbfd6;box-shadow:0 5px 0 #4a3b55}
+
+  footer{text-align:center;font-size:12px;color:var(--brown2);margin-top:22px}
+  footer button{background:none;border:none;color:var(--brown2);text-decoration:underline;font-size:12px;padding:10px}
+
+  /* ---------- Textes flottants ---------- */
+  #floats{position:fixed;inset:0;pointer-events:none;z-index:50;overflow:hidden}
+  .float{position:absolute;font-weight:900;font-size:24px;color:var(--green);white-space:nowrap;
+    text-shadow:0 2px 0 #fff,0 0 6px #fff;animation:floatUp 1s ease-out forwards;transform:translate(-50%,-50%)}
+  .float.item{font-size:30px;text-shadow:none;animation:floatItem 1s ease-out forwards}
+  .float.small{font-size:18px}
+  @keyframes floatUp{0%{opacity:0;transform:translate(-50%,-30%) scale(.7)}
+    15%{opacity:1;transform:translate(-50%,-70%) scale(1.1)}
+    100%{opacity:0;transform:translate(-50%,-260%) scale(1)}}
+  @keyframes floatItem{0%{opacity:1;transform:translate(-50%,-50%) rotate(0)}
+    100%{opacity:0;transform:translate(calc(-50% + var(--dx)),-320%) rotate(var(--rot))}}
+
+  /* ---------- Fenêtres ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(40,24,12,.6);z-index:100;display:flex;
+    align-items:center;justify-content:center;padding:20px;animation:fade .2s}
+  @keyframes fade{from{opacity:0}}
+  .modal{background:var(--cream);border-radius:24px;max-width:400px;width:100%;padding:22px 18px 18px;
+    text-align:center;box-shadow:0 8px 0 rgba(90,58,34,.5);border:3px solid var(--kraft2);animation:rise .25s}
+  @keyframes rise{from{transform:translateY(30px) scale(.95)}}
+  .modal .emoji{font-size:56px;line-height:1}
+  .modal h3{font-family:Georgia,serif;font-size:23px;margin:8px 0}
+  .modal p{font-size:15px;line-height:1.45;margin:8px 0}
+  .modal .amount{font-size:32px;font-weight:900;color:var(--green);margin:10px 0}
+  .modal .mbtns{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+  .modal .mbtns button{min-height:56px;border:none;border-radius:16px;font-size:17px;font-weight:900;color:#fff;
+    background:var(--teal);box-shadow:0 4px 0 var(--teal-d)}
+  .modal .mbtns button.alt{background:var(--mustard);color:#4a2e00;box-shadow:0 4px 0 var(--mustard-d)}
+  .modal .mbtns button.ghost{background:#e4d6bb;color:var(--brown);box-shadow:0 4px 0 #bfae8e}
+  .modal .mbtns button.danger{background:var(--rust);box-shadow:0 4px 0 var(--rust-d)}
+  .modal .mbtns button:active{transform:translateY(3px);box-shadow:none}
+  .adScreen{background:linear-gradient(135deg,#2f8f83,#4b2c5e);color:#fff;border-radius:16px;padding:22px 12px;margin:4px 0 12px}
+  .adScreen .emoji{animation:pulse .8s infinite}
+  .adBar{height:12px;background:rgba(0,0,0,.15);border-radius:999px;overflow:hidden;margin-top:6px}
+  .adBar div{height:100%;width:0;background:var(--mustard);transition:width .1s linear}
+
+  #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(150%);
+    background:var(--brown);color:#fff;padding:12px 18px;border-radius:14px;font-weight:bold;z-index:90;
+    transition:transform .25s;max-width:90vw;text-align:center;font-size:15px;box-shadow:0 4px 0 rgba(0,0,0,.25)}
+  #toast.show{transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="awning"></div>
+  <div class="hud">
+    <div class="title">🏺 Empire de la Revente 🏺</div>
+    <div class="money" id="money">0 €</div>
+    <div class="rates">
+      <span class="chip" id="rate">0 €/s</span>
+      <span class="chip" id="starsChip">⭐ 0</span>
+      <span class="chip boost" id="boostChip" hidden>×2 · 2:00</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="sellWrap">
+    <button id="sell" aria-label="Vendre un objet">
+      <span class="big" id="sellEmoji">🧸</span>
+      <span>Vendre un objet</span>
+      <span class="small" id="clickVal">+1 € par clic</span>
+    </button>
+  </div>
+
+  <button id="adBtn">📺 Regarder une pub : gains ×2 pendant 2 minutes<small id="adSub">Publicité de 5 secondes</small></button>
+
+  <div class="sectionTitle">
+    <span>Mes business</span>
+    <div class="seg" id="seg">
+      <button data-q="1" class="on">×1</button>
+      <button data-q="10">×10</button>
+      <button data-q="100">×100</button>
+      <button data-q="max">Max</button>
+    </div>
+  </div>
+
+  <div id="list"></div>
+
+  <section class="prestige">
+    <h2>⭐ Réputation</h2>
+    <p id="pStars">Vous avez <b>0 étoile</b> (+0 % de gains)</p>
+    <p id="pInfo">Gagnez 1 Md € dans cette partie pour revendre votre empire et gagner des étoiles de réputation. Chaque étoile donne +2 % de gains, pour toujours.</p>
+    <div class="pbar"><div id="pBar"></div></div>
+    <p id="pProg" style="font-weight:bold">0 € / 1,0 Md €</p>
+    <button id="prestigeBtn" disabled>Recommencer à zéro</button>
+  </section>
+
+  <footer>
+    Sauvegarde automatique dans ce navigateur.<br>
+    <button id="resetBtn">Effacer ma sauvegarde</button>
+  </footer>
+</main>
+
+<div id="floats"></div>
+<div id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ================== Données ================== */
+  // rate : €/s par exemplaire ; dur : durée d'un cycle de vente (s)
+  const BIZ = [
+    {name:"Vide-grenier",                icon:"🧺", cost:4,    firstFree:true, rate:1,      dur:1,  mgrCost:100,   mgr:"Mamie Odette"},
+    {name:"Annonces en ligne",           icon:"📱", cost:50,   rate:5,      dur:3,  mgrCost:1500,  mgr:"Kevin le geek"},
+    {name:"Stand au marché aux puces",   icon:"⛺", cost:600,  rate:40,     dur:6,  mgrCost:15000, mgr:"Gégé des puces"},
+    {name:"Dépôt-vente",                 icon:"🏚️", cost:7000, rate:300,    dur:12, mgrCost:200000,mgr:"Madame Simone"},
+    {name:"Boutique vintage",            icon:"👗", cost:80000,rate:2500,   dur:24, mgrCost:2.5e6, mgr:"Lulu la styliste"},
+    {name:"Entrepôt de revente",         icon:"🏭", cost:1e6,  rate:20000,  dur:48, mgrCost:3e7,   mgr:"Robert le cariste"},
+    {name:"Site e-commerce national",    icon:"🌐", cost:1.5e7,rate:180000, dur:96, mgrCost:5e8,   mgr:"Inès la PDG"}
+  ];
+  const GROWTH = 1.15;
+  const MILESTONES = [25,50,100,200,300,400,500];   // chaque palier : gains ×2
+  const PRESTIGE_MIN = 1e9;
+  const STAR_BONUS = 0.02;
+  const BOOST_MS = 2*60*1000;
+  const AD_SECONDS = 5;
+  const OFFLINE_CAP_S = 12*3600;
+  const SAVE_KEY = "empireDeLaRevente_v1";
+  const ITEMS = ["🧸","📻","🪑","🎸","👢","📚","🏺","🕰️","🧥","🎮","🖼️","💍","📷","🪆","🛼","☎️","🧳","🎩","🪀","💿"];
+
+  /* ================== État ================== */
+  function freshState(){
+    return {
+      money:0, runEarned:0, lifetime:0, stars:0, prestiges:0, clicks:0,
+      biz:BIZ.map(()=>({n:0, mgr:false, p:0, run:false})),
+      boostEnd:0, last:Date.now()
+    };
+  }
+  let S = freshState();
+  let buyQty = 1;
+
+  /* ================== Formatage ================== */
+  const UNITS = ["","K","M","Md","Bn","Bd","Tn","Td","Qn","Qd","Sx","Sd"];
+  function fmt(n){
+    if(!isFinite(n)) return "∞";
+    if(n<0) return "-"+fmt(-n);
+    if(n<1000) return String(Math.floor(n));
+    let k = Math.floor(Math.log10(n)/3);
+    if(k>=UNITS.length) return n.toExponential(2).replace(".",",");
+    let v = n/Math.pow(10,3*k);
+    let s = v<100 ? (Math.floor(v*10)/10).toFixed(1) : String(Math.floor(v));
+    if(parseFloat(s)>=1000 && k+1<UNITS.length){ k++; v=n/Math.pow(10,3*k); s=(Math.floor(v*10)/10).toFixed(1); }
+    return s.replace(".",",")+" "+UNITS[k];
+  }
+  const eur = n => fmt(n)+" €";
+  function fmtTime(sec){
+    sec=Math.floor(sec);
+    const h=Math.floor(sec/3600), m=Math.floor(sec%3600/60), s=sec%60;
+    if(h>0) return h+" h "+String(m).padStart(2,"0")+" min";
+    if(m>0) return m+" min "+String(s).padStart(2,"0")+" s";
+    return s+" s";
+  }
+  function fmtClock(ms){ const s=Math.ceil(ms/1000); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+
+  /* ================== Calculs ================== */
+  const boostOn = () => Date.now() < S.boostEnd;
+  const starMult = () => 1 + STAR_BONUS*S.stars;
+  const mult = () => starMult() * (boostOn()?2:1);
+  function milestoneMult(n){ let m=1; for(const t of MILESTONES) if(n>=t) m*=2; return m; }
+  function nextMilestone(n){ for(const t of MILESTONES) if(n<t) return t; return null; }
+  function unitPrice(i,n){
+    const b=BIZ[i];
+    if(b.firstFree){ if(n===0) return 0; return b.cost*Math.pow(GROWTH,n-1); }
+    return b.cost*Math.pow(GROWTH,n);
+  }
+  // renvoie {q, cost} pour le mode d'achat courant
+  function buyInfo(i){
+    const n=S.biz[i].n;
+    if(buyQty==="max"){
+      let q=0, c=0;
+      while(q<1000){ const p=unitPrice(i,n+q); if(c+p>S.money) break; c+=p; q++; }
+      if(q===0) return {q:1, cost:unitPrice(i,n)};
+      return {q, cost:c};
+    }
+    let c=0; for(let k=0;k<buyQty;k++) c+=unitPrice(i,n+k);
+    return {q:buyQty, cost:c};
+  }
+  const perCycle = i => BIZ[i].rate*BIZ[i].dur*S.biz[i].n*milestoneMult(S.biz[i].n)*mult();
+  function autoPerSec(withBoost){
+    let t=0;
+    S.biz.forEach((b,i)=>{ if(b.mgr && b.n>0) t+=BIZ[i].rate*b.n*milestoneMult(b.n); });
+    return t*starMult()*(withBoost && boostOn()?2:1);
+  }
+  const starsForRun = () => S.runEarned<PRESTIGE_MIN ? 0 : Math.floor(10*Math.sqrt(S.runEarned/PRESTIGE_MIN));
+
+  function earn(x){ S.money+=x; S.runEarned+=x; S.lifetime+=x; }
+
+  /* ================== Sauvegarde ================== */
+  function save(){
+    S.last = Date.now();
+    try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){}
+  }
+  function load(){
+    try{
+      const raw=localStorage.getItem(SAVE_KEY);
+      if(!raw) return false;
+      const d=JSON.parse(raw);
+      const base=freshState();
+      S=Object.assign(base,d);
+      S.biz = BIZ.map((_,i)=>Object.assign({n:0,mgr:false,p:0,run:false}, (d.biz||[])[i]||{}));
+      return true;
+    }catch(e){ return false; }
+  }
+
+  /* ================== Interface : construction ================== */
+  const $ = id => document.getElementById(id);
+  const list=$("list");
+  const cards=[];
+
+  BIZ.forEach((b,i)=>{
+    const el=document.createElement("div");
+    el.className="card";
+    el.innerHTML=`
+      <div class="top">
+        <button class="ico" aria-label="Lancer la vente">${b.icon}<span class="cnt">0</span></button>
+        <div class="info">
+          <div class="name">${b.name}</div>
+          <div class="bar"><div class="fill"></div><span class="barTxt"></span></div>
+          <div class="sub"></div>
+        </div>
+      </div>
+      <div class="btns">
+        <button class="btn buy"></button>
+        <button class="btn mgr"></button>
+        <div class="mgrOn" hidden>👤 ${b.mgr}<br>gère tout !</div>
+      </div>`;
+    list.appendChild(el);
+    const c={
+      el, ico:el.querySelector(".ico"), cnt:el.querySelector(".cnt"), fill:el.querySelector(".fill"),
+      barTxt:el.querySelector(".barTxt"), sub:el.querySelector(".sub"), bar:el.querySelector(".bar"),
+      buy:el.querySelector(".buy"), mgr:el.querySelector(".mgr"), mgrOn:el.querySelector(".mgrOn"),
+      cache:{}
+    };
+    cards.push(c);
+    const start = () => startCycle(i);
+    c.ico.addEventListener("click", start);
+    c.bar.addEventListener("click", start);
+    c.buy.addEventListener("click", ()=>buy(i));
+    c.mgr.addEventListener("click", ()=>hireManager(i));
+  });
+
+  function setText(c,key,el,val){ if(c.cache[key]!==val){ c.cache[key]=val; el.innerHTML=val; } }
+  function setFlag(c,key,fn,val){ if(c.cache[key]!==val){ c.cache[key]=val; fn(val); } }
+
+  /* ================== Actions ================== */
+  function startCycle(i){
+    const b=S.biz[i];
+    if(b.n===0){ toast("Achetez d'abord un « "+BIZ[i].name+" » !"); return; }
+    if(b.mgr || b.run) return;
+    b.run=true; b.p=0;
+  }
+  function buy(i){
+    const {q,cost}=buyInfo(i);
+    if(cost>S.money+1e-9) return;
+    const before=S.biz[i].n;
+    S.money-=cost;
+    S.biz[i].n+=q;
+    const after=S.biz[i].n;
+    for(const t of MILESTONES) if(before<t && after>=t) toast("🎉 "+t+" × "+BIZ[i].name+" : gains ×2 !");
+    if(before===0) toast("✨ "+BIZ[i].name+" ouvert ! Touchez l'icône pour vendre.");
+    bump(cards[i].ico);
+    render(true);
+  }
+  function hireManager(i){
+    const b=S.biz[i];
+    if(b.mgr || b.n===0 || S.money<BIZ[i].mgrCost) return;
+    S.money-=BIZ[i].mgrCost;
+    b.mgr=true; b.run=true;
+    toast("👤 "+BIZ[i].mgr+" gère désormais : "+BIZ[i].name+" !");
+    render(true);
+  }
+  function bump(el){ el.animate([{transform:"scale(1)"},{transform:"scale(1.15)"},{transform:"scale(1)"}],{duration:220}); }
+
+  /* ---------- Bouton vendre ---------- */
+  const sellBtn=$("sell");
+  sellBtn.addEventListener("pointerdown", e=>{
+    e.preventDefault();
+    const v=1*mult();
+    earn(v); S.clicks++;
+    const x=e.clientX||window.innerWidth/2, y=e.clientY||window.innerHeight/2;
+    floatText(x, y-20, "+"+eur(v));
+    const it=ITEMS[Math.floor(Math.random()*ITEMS.length)];
+    floatItem(x, y, it);
+    $("sellEmoji").textContent=it;
+    sellBtn.classList.add("down");
+    popMoney();
+  });
+  ["pointerup","pointercancel","pointerleave"].forEach(ev=>sellBtn.addEventListener(ev,()=>sellBtn.classList.remove("down")));
+  sellBtn.addEventListener("contextmenu", e=>e.preventDefault());
+
+  /* ---------- Mode d'achat ---------- */
+  $("seg").addEventListener("click", e=>{
+    const t=e.target.closest("button"); if(!t) return;
+    [...$("seg").children].forEach(b=>b.classList.toggle("on", b===t));
+    buyQty = t.dataset.q==="max" ? "max" : parseInt(t.dataset.q,10);
+    render(true);
+  });
+
+  /* ---------- Pub ---------- */
+  $("adBtn").addEventListener("click", ()=>{
+    playAd(()=>{
+      S.boostEnd = Math.max(Date.now(), S.boostEnd) + BOOST_MS;
+      save();
+      showModal({emoji:"🚀", title:"Boost activé !", body:"<p>Tous vos gains sont <b>doublés</b> pendant <b>"+fmtClock(S.boostEnd-Date.now())+"</b>.</p>",
+        buttons:[{label:"Super !"}]});
+    });
+  });
+
+  function playAd(onDone){
+    const ov=document.createElement("div");
+    ov.className="overlay";
+    const pubs=[
+      ["🛋️","Canapés d'Antan","Le cuir qui a du vécu."],
+      ["🧹","Débarras Express","On vide, vous chinez !"],
+      ["📦","Cartons Costauds","Pour déménager les trésors."],
+      ["☕","Café de la Brocante","Le petit noir des chineurs."]
+    ];
+    const p=pubs[Math.floor(Math.random()*pubs.length)];
+    ov.innerHTML=`<div class="modal">
+      <div class="adScreen"><div class="emoji">${p[0]}</div><h3>${p[1]}</h3><p>${p[2]}</p></div>
+      <p style="font-weight:bold">Publicité… <span id="adCount">${AD_SECONDS}</span> s</p>
+      <div class="adBar"><div id="adFill"></div></div>
+    </div>`;
+    document.body.appendChild(ov);
+    const t0=Date.now();
+    const iv=setInterval(()=>{
+      const el=(Date.now()-t0)/1000;
+      const cnt=ov.querySelector("#adCount"), fill=ov.querySelector("#adFill");
+      if(cnt) cnt.textContent=Math.max(0,Math.ceil(AD_SECONDS-el));
+      if(fill) fill.style.width=Math.min(100,el/AD_SECONDS*100)+"%";
+      if(el>=AD_SECONDS){ clearInterval(iv); ov.remove(); onDone(); }
+    },100);
+  }
+
+  /* ---------- Prestige ---------- */
+  $("prestigeBtn").addEventListener("click", ()=>{
+    const gain=starsForRun();
+    if(gain<=0) return;
+    showModal({emoji:"⭐", title:"Revendre votre empire ?",
+      body:`<p>Vous repartez de zéro (argent, business et managers), mais vous gagnez :</p>
+            <div class="amount" style="color:var(--mustard-d)">+${gain} ⭐</div>
+            <p>Total : <b>${S.stars+gain} étoiles</b> soit <b>+${Math.round((S.stars+gain)*STAR_BONUS*100)} %</b> de gains pour toujours.</p>`,
+      buttons:[
+        {label:"Oui, recommencer !", cls:"alt", fn:doPrestige},
+        {label:"Pas maintenant", cls:"ghost"}
+      ]});
+  });
+  function doPrestige(){
+    const gain=starsForRun();
+    if(gain<=0) return;
+    const keep={stars:S.stars+gain, lifetime:S.lifetime, prestiges:S.prestiges+1, clicks:S.clicks, boostEnd:S.boostEnd};
+    S=Object.assign(freshState(), keep);
+    save();
+    Object.values(cards).forEach(c=>c.cache={});
+    render(true);
+    toast("⭐ Nouvelle aventure ! Vos clients se souviennent de vous.");
+  }
+
+  $("resetBtn").addEventListener("click", ()=>{
+    showModal({emoji:"🗑️", title:"Tout effacer ?", body:"<p>Votre progression, y compris les étoiles de réputation, sera définitivement supprimée.</p>",
+      buttons:[
+        {label:"Oui, tout effacer", cls:"danger", fn:()=>{ try{localStorage.removeItem(SAVE_KEY);}catch(e){} S=freshState(); cards.forEach(c=>c.cache={}); save(); render(true); }},
+        {label:"Annuler", cls:"ghost"}
+      ]});
+  });
+
+  /* ================== Fenêtres & effets ================== */
+  function showModal({emoji,title,body,buttons}){
+    const ov=document.createElement("div");
+    ov.className="overlay";
+    const m=document.createElement("div");
+    m.className="modal";
+    m.innerHTML=(emoji?`<div class="emoji">${emoji}</div>`:"")+`<h3>${title}</h3>`+body+`<div class="mbtns"></div>`;
+    const box=m.querySelector(".mbtns");
+    (buttons||[{label:"OK"}]).forEach(b=>{
+      const bt=document.createElement("button");
+      bt.textContent=b.label;
+      if(b.cls) bt.className=b.cls;
+      bt.addEventListener("click",()=>{ ov.remove(); if(b.fn) b.fn(); });
+      box.appendChild(bt);
+    });
+    ov.appendChild(m);
+    document.body.appendChild(ov);
+    return ov;
+  }
+
+  const floats=$("floats");
+  function floatText(x,y,txt,cls){
+    if(floats.childElementCount>40) floats.firstChild.remove();
+    const d=document.createElement("div");
+    d.className="float"+(cls?" "+cls:"");
+    d.textContent=txt;
+    d.style.left=(x+(Math.random()*30-15))+"px";
+    d.style.top=y+"px";
+    d.addEventListener("animationend",()=>d.remove());
+    floats.appendChild(d);
+  }
+  function floatItem(x,y,emo){
+    if(floats.childElementCount>40) floats.firstChild.remove();
+    const d=document.createElement("div");
+    d.className="float item";
+    d.textContent=emo;
+    d.style.left=x+"px"; d.style.top=y+"px";
+    d.style.setProperty("--dx",(Math.random()*120-60)+"px");
+    d.style.setProperty("--rot",(Math.random()*90-45)+"deg");
+    d.addEventListener("animationend",()=>d.remove());
+    floats.appendChild(d);
+  }
+  let toastT;
+  function toast(msg){
+    const t=$("toast"); t.textContent=msg; t.classList.add("show");
+    clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2400);
+  }
+  const moneyEl=$("money");
+  function popMoney(){ moneyEl.classList.remove("pop"); void moneyEl.offsetWidth; moneyEl.classList.add("pop"); }
+
+  /* ================== Boucle de jeu ================== */
+  function tick(dt){
+    S.biz.forEach((b,i)=>{
+      if(b.n===0) return;
+      if(b.mgr) b.run=true;
+      if(!b.run) return;
+      b.p += dt/BIZ[i].dur;
+      if(b.p>=1){
+        const cycles = b.mgr ? Math.floor(b.p) : 1;
+        const gain = cycles*perCycle(i);
+        earn(gain);
+        b.p = b.mgr ? b.p-cycles : 0;
+        if(!b.mgr) b.run=false;
+        showBizFloat(i,gain);
+      }
+    });
+  }
+  function showBizFloat(i,gain){
+    const r=cards[i].bar.getBoundingClientRect();
+    if(r.bottom<0 || r.top>window.innerHeight) return;
+    floatText(r.left+r.width/2, r.top, "+"+eur(gain), "small");
+  }
+
+  let lastRender=0;
+  function render(force){
+    const now=performance.now();
+    // barres de progression : à chaque image
+    S.biz.forEach((b,i)=>{
+      const c=cards[i];
+      const fast = b.mgr && BIZ[i].dur<=1;
+      const p = b.n===0 ? 0 : (fast ? 1 : b.p);
+      c.fill.style.transform="scaleX("+Math.min(1,p).toFixed(3)+")";
+    });
+    if(!force && now-lastRender<100) return;
+    lastRender=now;
+
+    moneyEl.textContent=eur(S.money);
+    $("rate").textContent="🤖 "+eur(autoPerSec(true))+"/s";
+    $("starsChip").textContent="⭐ "+S.stars+(S.stars?" (+"+Math.round(S.stars*STAR_BONUS*100)+" %)":"");
+    const bc=$("boostChip");
+    if(boostOn()){ bc.hidden=false; bc.textContent="🚀 ×2 · "+fmtClock(S.boostEnd-Date.now()); }
+    else bc.hidden=true;
+    $("clickVal").textContent="+"+eur(mult())+" par clic";
+    $("adSub").textContent = boostOn() ? "Boost actif ("+fmtClock(S.boostEnd-Date.now())+") — regardez encore pour +2 min" : "Publicité de 5 secondes";
+
+    let prevOwned=true;
+    S.biz.forEach((b,i)=>{
+      const c=cards[i], B=BIZ[i];
+      const mystery = !prevOwned && b.n===0;
+      setFlag(c,"mys",v=>c.el.classList.toggle("mystery",v),mystery);
+      setFlag(c,"lock",v=>c.el.classList.toggle("locked",v),b.n===0);
+      setText(c,"cnt",c.cnt,String(b.n));
+      setFlag(c,"idle",v=>c.ico.classList.toggle("idle",v), b.n>0 && !b.mgr && !b.run);
+
+      const mm=milestoneMult(Math.max(1,b.n));
+      const cyc = b.n>0 ? perCycle(i) : B.rate*B.dur*mult();
+      let bar;
+      if(b.n===0) bar = mystery ? "???" : "+"+eur(cyc)+" / "+B.dur+" s";
+      else if(b.mgr) bar = "+"+eur(cyc)+(B.dur<=1?" / s":" · "+Math.ceil((1-b.p)*B.dur)+" s");
+      else if(b.run) bar = "+"+eur(cyc)+" · "+Math.ceil((1-b.p)*B.dur)+" s";
+      else bar = "👆 Touchez pour vendre · +"+eur(cyc);
+      setText(c,"bar",c.barTxt,bar);
+
+      const nm=nextMilestone(b.n);
+      const sub = eur(B.rate*mm*mult())+"/s par unité"+(nm?" · palier "+nm+" : gains ×2":" · paliers max !");
+      setText(c,"sub",c.sub,sub);
+
+      const {q,cost}=buyInfo(i);
+      const label = "Acheter ×"+q+"<b>"+(cost===0?"Gratuit":eur(cost))+"</b>";
+      setText(c,"buy",c.buy,label);
+      c.buy.disabled = cost>S.money+1e-9 || mystery;
+
+      setFlag(c,"mgrState",v=>{ c.mgr.hidden=v; c.mgrOn.hidden=!v; }, b.mgr);
+      if(!b.mgr){
+        setText(c,"mgrTxt",c.mgr,"👤 Manager<b>"+eur(B.mgrCost)+"</b>");
+        c.mgr.disabled = b.n===0 || S.money<B.mgrCost;
+      }
+      prevOwned = b.n>0;
+    });
+
+    // prestige
+    const st=S.stars;
+    $("pStars").innerHTML="Vous avez <b>"+st+" étoile"+(st>1?"s":"")+"</b> (+"+Math.round(st*STAR_BONUS*100)+" % de gains)";
+    const ratio=Math.min(1,S.runEarned/PRESTIGE_MIN);
+    $("pBar").style.width=(ratio*100)+"%";
+    $("pProg").textContent=eur(S.runEarned)+" gagnés / "+eur(PRESTIGE_MIN);
+    const g=starsForRun(), pb=$("prestigeBtn");
+    pb.disabled = g<=0;
+    pb.textContent = g>0 ? "Revendre l'empire : +"+g+" ⭐" : "Disponible à 1 Md € gagnés";
+  }
+
+  let lastFrame=performance.now();
+  function frame(t){
+    let dt=(t-lastFrame)/1000;
+    lastFrame=t;
+    if(dt>0) tick(Math.min(dt,10));
+    render(false);
+    requestAnimationFrame(frame);
+  }
+
+  /* ================== Gains hors ligne ================== */
+  function offlineCheck(fromTs){
+    const now=Date.now();
+    let sec=(now-fromTs)/1000;
+    if(sec<15) return;
+    const capped=Math.min(sec,OFFLINE_CAP_S);
+    const base=autoPerSec(false);
+    if(base<=0) return;
+    const boosted=Math.max(0,Math.min(capped,(S.boostEnd-fromTs)/1000));
+    const gain=base*(capped+boosted);
+    earn(gain);
+    save();
+    render(true);
+    showModal({
+      emoji:"🧾", title:"Bon retour, patron !",
+      body:`<p>Pendant votre absence (<b>${fmtTime(sec)}</b>${sec>OFFLINE_CAP_S?", max 12 h comptées":""}), vos managers ont vendu pour :</p>
+            <div class="amount">+${eur(gain)}</div>`,
+      buttons:[
+        {label:"📺 Doubler avec une pub", cls:"alt", fn:()=>playAd(()=>{ earn(gain); save(); toast("💰 +"+eur(gain)+" supplémentaires !"); })},
+        {label:"Encaisser", cls:""}
+      ]
+    });
+  }
+
+  /* ================== Démarrage ================== */
+  const had=load();
+  if(had) offlineCheck(S.last);
+  else {
+    showModal({emoji:"🏚️", title:"Bienvenue dans votre garage !",
+      body:"<p>Tout commence par un petit <b>vide-grenier</b>. Vendez vos vieux objets, ouvrez des business, engagez des managers… et bâtissez votre <b>Empire de la Revente</b> !</p>",
+      buttons:[{label:"C'est parti !"}]});
+  }
+  save();
+  render(true);
+  requestAnimationFrame(t=>{ lastFrame=t; frame(t); });
+
+  setInterval(()=>{ if(!document.hidden) save(); },5000);
+  document.addEventListener("visibilitychange",()=>{
+    if(document.hidden){ save(); }
+    else {
+      offlineCheck(S.last);
+      lastFrame=performance.now();
+      S.last=Date.now();
+    }
+  });
+  window.addEventListener("pagehide",save);
+  window.addEventListener("beforeunload",save);
+})();
+</script>
+</body>
+</html>
