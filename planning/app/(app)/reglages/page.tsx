@@ -14,10 +14,8 @@ export default function SettingsPage() {
 
   const setType = (type: BusinessType) => {
     if (type === state.establishment.type) return;
-    if (confirm(`Passer en « ${type === "restaurant" ? "Restaurant" : "Boutique"} » ? La démo sera rechargée avec des données adaptées.`)) {
-      reset(type);
-      toast("Données de démonstration rechargées");
-    }
+    reset(type);
+    toast(`Démo rechargée en mode ${type === "restaurant" ? "restaurant" : "boutique"}`);
   };
 
   return (

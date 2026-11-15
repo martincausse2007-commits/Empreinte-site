@@ -17,8 +17,11 @@ export default function SharePage() {
   const [mode, setMode] = useState<"day" | "person">("person");
   const [origin, setOrigin] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- l'adresse du site n'est connue que dans le navigateur
-  useEffect(() => setOrigin(window.location.origin), []);
+  // L'adresse du site n'est connue que dans le navigateur
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOrigin(window.location.origin);
+  }, []);
 
   const link = `${origin}/p/${state.shareToken}`;
   const text = whatsappText(state, week, shifts, mode, link);
