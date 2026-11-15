@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { Logo } from "../Logo";
 import { cx } from "../ui";
 import { useApp } from "@/lib/store";
+import { activity } from "@/lib/presets";
 
 const NAV = [
   { href: "/planning", label: "Planning", icon: CalendarDays },
@@ -30,7 +31,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         <div className="mx-3 mb-3 rounded-xl border border-slate-200/80 bg-slate-50 px-3 py-2.5">
           <div className="truncate text-sm font-medium">{ready ? state.establishment.name : "…"}</div>
-          <div className="text-xs text-slate-500">{state.establishment.type === "restaurant" ? "Restaurant" : "Boutique"} · {state.employees.length} personnes</div>
+          <div className="text-xs text-slate-500">{activity(state.establishment.type).label} · {state.employees.length} personnes</div>
         </div>
         <nav className="flex flex-1 flex-col gap-0.5 px-3">
           {NAV.map(({ href, label, icon: Icon }) => (

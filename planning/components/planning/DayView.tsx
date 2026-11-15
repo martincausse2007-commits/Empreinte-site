@@ -3,7 +3,7 @@
 import { Plus } from "lucide-react";
 import type { AppState, Shift } from "@/lib/types";
 import type { Alert } from "@/lib/rules";
-import { coverage, getNeed, hoursByEmployee, shiftCoversService } from "@/lib/rules";
+import { coverage, getNeed, hoursByEmployee, serviceActive, shiftCoversService, svTime } from "@/lib/rules";
 import { DAYS, DAYS_SHORT, dateOfDay, formatTime } from "@/lib/time";
 import { POST_COLORS } from "@/lib/colors";
 import { Avatar, Card, cx } from "../ui";
@@ -56,7 +56,8 @@ export function DayView({ state, week, shifts, alerts, errorShifts, day, onDay, 
       </div>
 
       <div className="space-y-3">
-        {state.services.map((sv) => {
+        {state.services.filter((sv) => serviceActive(sv, day)).map((sv) => {
+          const t = svTime(sv, day);
           const posts = state.posts.filter((p) => getNeed(state.needs, day, sv.id, p.id) > 0 || dayShifts.some((s) => s.postId === p.id && shiftCoversService(s, sv)));
           if (posts.length === 0)
             return (
@@ -73,7 +74,7 @@ export function DayView({ state, week, shifts, alerts, errorShifts, day, onDay, 
                 <div>
                   <span className="font-semibold">{sv.name}</span>{" "}
                   <span className="text-sm text-slate-500">
-                    {formatTime(sv.start)} – {formatTime(sv.end)}
+                    {formatTime(t.start)} – {formatTime(t.end)}
                   </span>
                 </div>
               </div>
@@ -110,7 +111,7 @@ export function DayView({ state, week, shifts, alerts, errorShifts, day, onDay, 
                             >
                               <Avatar id={e.id} name={`${e.firstName} ${e.lastName}`} size={26} />
                               <span className="font-medium">{e.firstName}</span>
-                              {(s.start !== sv.start || s.end !== sv.end) && (
+                              {(s.start !== t.start || s.end !== t.end) && (
                                 <span className="text-xs text-slate-500">
                                   {formatTime(s.start)}–{formatTime(s.end)}
                                 </span>

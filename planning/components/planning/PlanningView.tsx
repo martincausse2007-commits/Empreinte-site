@@ -5,7 +5,7 @@ import Link from "next/link";
 import { CalendarDays, ChevronLeft, ChevronRight, Copy, LayoutTemplate, Loader2, MoreHorizontal, Share2, Sparkles, Trash2 } from "lucide-react";
 import { uid, useApp } from "@/lib/store";
 import type { Shift } from "@/lib/types";
-import { computeAlerts } from "@/lib/rules";
+import { computeAlerts, serviceActive, svTime } from "@/lib/rules";
 import { generateWeek } from "@/lib/generate";
 import { applyTemplate, copyWeek } from "@/lib/templates";
 import { addWeeks, formatWeekRange, isoWeekNumber } from "@/lib/time";
@@ -68,10 +68,11 @@ export function PlanningView() {
 
   function newShift(employeeId: string, d: number, serviceId?: string, postId?: string) {
     const e = state.employees.find((x) => x.id === employeeId) ?? state.employees[0];
-    const sv = state.services.find((s) => s.id === serviceId) ?? state.services[0];
+    const sv = state.services.find((s) => s.id === serviceId) ?? state.services.find((s) => serviceActive(s, d)) ?? state.services[0];
+    const t = sv ? svTime(sv, d) : { start: "09:00", end: "17:00" };
     setEditing({
       isNew: true,
-      shift: { id: uid("s"), employeeId: e.id, day: d, start: sv.start, end: sv.end, postId: postId ?? e.postIds[0] ?? state.posts[0].id },
+      shift: { id: uid("s"), employeeId: e.id, day: d, start: t.start, end: t.end, breakMinutes: sv?.breakMinutes, postId: postId ?? e.postIds[0] ?? state.posts[0].id },
     });
   }
 
@@ -263,8 +264,8 @@ export function PlanningView() {
         }
       >
         <p className="text-sm text-slate-600">
-          Le planning actuel de la semaine ({shifts.length} créneaux) sera remplacé par une nouvelle proposition qui respecte les disponibilités, les contrats, les 11 h de repos,
-          les 2 jours de repos et l&apos;équité des week-ends.
+          Le planning actuel de la semaine ({shifts.length} créneaux) sera remplacé par une nouvelle proposition qui respecte les disponibilités, les contrats, vos règles de repos et de coupures
+          et l&apos;équité des week-ends.
         </p>
       </Modal>
 

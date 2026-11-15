@@ -1,12 +1,13 @@
 // Fausses données pour la maquette : un restaurant de 10 personnes
-// (et une variante « boutique » si on choisit ce type à l'inscription).
+// (le questionnaire de configuration crée ensuite les vraies données).
 
-import type { AppState, BusinessType, Employee, Needs, Post, Service, Template } from "./types";
+import type { AppState, Employee, Needs, Post, Service, Template } from "./types";
+import { DEFAULT_RULES } from "./presets";
 import { needKey } from "./rules";
 import { generateWeek } from "./generate";
 import { addWeeks, mondayOf } from "./time";
 
-export const STATE_VERSION = 1;
+export const STATE_VERSION = 2;
 
 const RESTAURANT_POSTS: Post[] = [
   { id: "salle", name: "Salle", color: "blue" },
@@ -17,17 +18,6 @@ const RESTAURANT_POSTS: Post[] = [
 const RESTAURANT_SERVICES: Service[] = [
   { id: "midi", name: "Midi", start: "11:00", end: "15:00" },
   { id: "soir", name: "Soir", start: "18:00", end: "23:00" },
-];
-
-const BOUTIQUE_POSTS: Post[] = [
-  { id: "vente", name: "Vente", color: "pink" },
-  { id: "caisse", name: "Caisse", color: "emerald" },
-  { id: "reserve", name: "Réserve", color: "amber" },
-];
-
-const BOUTIQUE_SERVICES: Service[] = [
-  { id: "matin", name: "Matin", start: "09:30", end: "14:00" },
-  { id: "aprem", name: "Après-midi", start: "14:00", end: "19:30" },
 ];
 
 const allDay = (days: number[]) => days.map((day) => ({ day, serviceId: "all" as const }));
@@ -45,18 +35,6 @@ function restaurantEmployees(): Employee[] {
     { id: "e9", firstName: "Nathan", lastName: "Girard", postIds: ["bar"], contractHours: 20, unavailability: allDay([0, 1]), weekendHistory: 0 },
     { id: "e10", firstName: "Manon", lastName: "Roux", postIds: ["salle"], contractHours: 15, unavailability: allDay([0, 1, 2, 3, 4]), weekendHistory: 4 },
   ];
-}
-
-function boutiqueEmployees(): Employee[] {
-  const map: Record<string, string[]> = {
-    e1: ["vente", "caisse"], e2: ["vente"], e3: ["caisse", "vente"], e4: ["vente"], e5: ["reserve", "vente"],
-    e6: ["vente"], e7: ["caisse"], e8: ["vente", "caisse"], e9: ["reserve"], e10: ["vente"],
-  };
-  return restaurantEmployees().map((e) => ({
-    ...e,
-    postIds: map[e.id],
-    unavailability: e.unavailability.map((u) => (u.serviceId === "midi" ? { ...u, serviceId: "matin" } : u)),
-  }));
 }
 
 function restaurantNeeds(): Needs {
@@ -80,27 +58,13 @@ function restaurantNeeds(): Needs {
   return n;
 }
 
-function boutiqueNeeds(): Needs {
-  const n: Needs = {};
-  const set = (days: number[], sv: string, post: string, v: number) => days.forEach((d) => (n[needKey(d, sv, post)] = v));
-  // Lundi → samedi, dimanche fermé.
-  set([0, 1, 2, 3, 4], "matin", "vente", 3);
-  set([0, 1, 2, 3, 4], "aprem", "vente", 3);
-  set([0, 1, 2, 3, 4, 5], "matin", "caisse", 1);
-  set([0, 1, 2, 3, 4, 5], "aprem", "caisse", 1);
-  set([5], "matin", "vente", 4);
-  set([5], "aprem", "vente", 4);
-  set([1, 3], "matin", "reserve", 1);
-  return n;
-}
-
-export function createDemoState(type: BusinessType = "restaurant", name?: string): AppState {
-  const isResto = type === "restaurant";
+export function createDemoState(name?: string): AppState {
   const base = {
-    posts: isResto ? RESTAURANT_POSTS : BOUTIQUE_POSTS,
-    services: isResto ? RESTAURANT_SERVICES : BOUTIQUE_SERVICES,
-    employees: isResto ? restaurantEmployees() : boutiqueEmployees(),
-    needs: isResto ? restaurantNeeds() : boutiqueNeeds(),
+    posts: RESTAURANT_POSTS,
+    services: RESTAURANT_SERVICES,
+    employees: restaurantEmployees(),
+    needs: restaurantNeeds(),
+    rules: { ...DEFAULT_RULES, splitShifts: "often" as const },
   };
 
   // Semaine à préparer = la semaine prochaine. La semaine en cours est déjà remplie.
@@ -120,8 +84,12 @@ export function createDemoState(type: BusinessType = "restaurant", name?: string
   return {
     version: STATE_VERSION,
     establishment: {
-      name: name || (isResto ? "Le Comptoir des Halles" : "Maison Lumen"),
-      type,
+      name: name || "Le Comptoir des Halles",
+      type: "restaurant",
+      organisation: "coupure",
+      opening: [[], ...Array.from({ length: 5 }, () => [{ start: "11:30", end: "14:30" }, { start: "18:30", end: "22:30" }]), [{ start: "11:30", end: "14:30" }]],
+      prepMinutes: 30,
+      closeMinutes: 30,
     },
     ...base,
     plans: { [thisWeek]: generateWeek(base, { seed: 3 }).shifts, [nextWeek]: [] },

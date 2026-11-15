@@ -127,3 +127,9 @@ export function isoWeekNumber(week: string): number {
   const diff = (target.getTime() - firstThursday.getTime()) / 86400000;
   return 1 + Math.round((diff - 3 + ((firstThursday.getDay() + 6) % 7)) / 7);
 }
+
+/** 690 -> "11:30" (accepte les valeurs au-delà de minuit) */
+export function fromMinutes(min: number): string {
+  const m = ((Math.round(min) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}

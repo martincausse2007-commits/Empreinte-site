@@ -4,7 +4,7 @@
 // (localStorage). À l'étape 2, ce fichier sera remplacé par Supabase.
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import type { AppState, BusinessType, Shift } from "./types";
+import type { AppState, Shift } from "./types";
 import { createDemoState, STATE_VERSION } from "./demo-data";
 
 const KEY = "planning-demo-state";
@@ -14,7 +14,8 @@ type Ctx = {
   ready: boolean;
   update: (fn: (s: AppState) => AppState) => void;
   setShifts: (week: string, fn: (shifts: Shift[]) => Shift[]) => void;
-  reset: (type?: BusinessType, name?: string) => void;
+  reset: () => void;
+  replace: (s: AppState) => void;
 };
 
 const AppContext = createContext<Ctx | null>(null);
@@ -56,9 +57,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setState((s) => ({ ...s, plans: { ...s.plans, [week]: fn(s.plans[week] ?? []) } })),
     [],
   );
-  const reset = useCallback((type?: BusinessType, name?: string) => setState(createDemoState(type, name)), []);
+  const reset = useCallback(() => setState(createDemoState()), []);
+  const replace = useCallback((s: AppState) => setState(s), []);
 
-  return <AppContext.Provider value={{ state, ready, update, setShifts, reset }}>{children}</AppContext.Provider>;
+  return <AppContext.Provider value={{ state, ready, update, setShifts, reset, replace }}>{children}</AppContext.Provider>;
 }
 
 export function useApp() {

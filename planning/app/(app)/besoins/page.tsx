@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { Copy } from "lucide-react";
 import { useApp } from "@/lib/store";
-import { getNeed, needKey } from "@/lib/rules";
-import { DAYS, DAYS_SHORT, durationHours, formatHours, formatTime } from "@/lib/time";
+import { getNeed, needKey, serviceActive, shiftHours, svTime } from "@/lib/rules";
+import { DAYS, DAYS_SHORT, formatHours, formatTime } from "@/lib/time";
 import { POST_COLORS } from "@/lib/colors";
 import { Button, Card, PageHeader, Stepper, cx, useToast } from "@/components/ui";
 
@@ -20,16 +20,20 @@ export default function NeedsPage() {
   const copyTuesdayToWeek = () => {
     update((s) => {
       const needs = { ...s.needs };
-      for (let d = 0; d < 5; d++) for (const p of s.posts) needs[needKey(d, sv.id, p.id)] = getNeed(s.needs, 1, sv.id, p.id);
+      const from = [1, 0, 2, 3, 4].find((d) => serviceActive(sv, d)) ?? 1;
+      for (let d = 0; d < 5; d++) if (serviceActive(sv, d)) for (const p of s.posts) needs[needKey(d, sv.id, p.id)] = getNeed(s.needs, from, sv.id, p.id);
       return { ...s, needs };
     });
-    toast(`Besoins du mardi copiés du lundi au vendredi (${sv.name.toLowerCase()})`);
+    toast(`Besoins copiés du lundi au vendredi (${sv.name.toLowerCase()})`);
   };
 
-  const totalHours = state.services.reduce(
-    (acc, s) => acc + Array.from({ length: 7 }, (_, d) => state.posts.reduce((a, p) => a + getNeed(state.needs, d, s.id, p.id), 0)).reduce((a, b) => a + b, 0) * durationHours(s.start, s.end),
-    0,
-  );
+  let totalHours = 0;
+  for (const s of state.services)
+    for (let d = 0; d < 7; d++) {
+      if (!serviceActive(s, d)) continue;
+      const people = state.posts.reduce((a, p) => a + getNeed(state.needs, d, s.id, p.id), 0);
+      totalHours += people * shiftHours({ ...svTime(s, d), breakMinutes: s.breakMinutes });
+    }
   const contract = state.employees.reduce((a, e) => a + e.contractHours, 0);
 
   return (
@@ -68,7 +72,7 @@ export default function NeedsPage() {
           ))}
         </div>
         <Button size="sm" variant="ghost" onClick={copyTuesdayToWeek}>
-          <Copy size={14} /> Copier le mardi sur la semaine
+          <Copy size={14} /> Même chose du lundi au vendredi
         </Button>
       </div>
 
@@ -96,7 +100,11 @@ export default function NeedsPage() {
                 </td>
                 {DAYS.map((_, d) => (
                   <td key={d} className="px-1 py-2 text-center">
-                    <Stepper value={getNeed(state.needs, d, sv.id, p.id)} onChange={(v) => setNeed(d, p.id, v)} max={20} />
+                    {serviceActive(sv, d) ? (
+                      <Stepper value={getNeed(state.needs, d, sv.id, p.id)} onChange={(v) => setNeed(d, p.id, v)} max={20} />
+                    ) : (
+                      <span className="text-xs text-slate-300">—</span>
+                    )}
                   </td>
                 ))}
               </tr>
@@ -119,6 +127,7 @@ export default function NeedsPage() {
       {/* Mobile : une carte par jour */}
       <div className="space-y-2.5 md:hidden">
         {DAYS.map((d, day) => {
+          if (!serviceActive(sv, day)) return null;
           const t = state.posts.reduce((a, p) => a + getNeed(state.needs, day, sv.id, p.id), 0);
           return (
             <Card key={day} className="px-4 py-3">

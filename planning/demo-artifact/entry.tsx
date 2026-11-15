@@ -14,6 +14,7 @@ import TemplatesPage from "@/app/(app)/modeles/page";
 import SharePage from "@/app/(app)/partage/page";
 import SettingsPage from "@/app/(app)/reglages/page";
 import { PublicPlanning } from "@/components/PublicPlanning";
+import { SetupWizard } from "@/components/setup/SetupWizard";
 
 const APP: Record<string, () => React.ReactNode> = {
   "/planning": () => <PlanningView />,
@@ -31,6 +32,7 @@ function Router() {
   }, [path]);
   if (path === "/connexion") return <LoginPage />;
   if (path === "/inscription") return <SignupPage />;
+  if (path === "/configuration") return <SetupWizard />;
   if (path.startsWith("/p/")) return <PublicPlanning token="demo" />;
   if (APP[path]) return <AppShell>{APP[path]()}</AppShell>;
   return <Home />;

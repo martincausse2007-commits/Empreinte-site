@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, Clock, Moon, UserX, Users, CalendarX, Layers } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, Clock, Moon, UserX, Users, CalendarX, Layers, Hourglass, Scissors } from "lucide-react";
 import type { Alert, AlertKind } from "@/lib/rules";
 import { ALERT_LABELS } from "@/lib/rules";
 import { cx } from "../ui";
@@ -13,6 +13,8 @@ const ICONS: Record<AlertKind, typeof Clock> = {
   unavailable: UserX,
   overlap: Layers,
   uncovered: Users,
+  dayLimit: Hourglass,
+  split: Scissors,
 };
 
 export function AlertsPanel({ alerts, onSelect }: { alerts: Alert[]; onSelect?: (a: Alert) => void }) {
@@ -23,7 +25,7 @@ export function AlertsPanel({ alerts, onSelect }: { alerts: Alert[]; onSelect?: 
       <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
         <CheckCircle2 size={18} className="shrink-0" />
         <span>
-          <span className="font-semibold">Tout est en règle.</span> Contrats, repos et couverture respectés.
+          <span className="font-semibold">Tout est en règle.</span> Contrats, repos, coupures et couverture respectés.
         </span>
       </div>
     );

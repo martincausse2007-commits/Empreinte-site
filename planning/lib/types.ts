@@ -1,7 +1,41 @@
 // Types partagés par toute l'application.
 // Les jours sont numérotés de 0 (lundi) à 6 (dimanche).
 
-export type BusinessType = "restaurant" | "boutique";
+/** Secteur d'activité choisi dans le questionnaire. */
+export type ActivityId =
+  | "restaurant"
+  | "bar"
+  | "boulangerie"
+  | "boutique"
+  | "supermarche"
+  | "beaute"
+  | "hotel"
+  | "agence"
+  | "autre";
+
+/** Ancien nom, gardé pour compatibilité. */
+export type BusinessType = ActivityId;
+
+/** Façon dont les journées sont découpées en créneaux. */
+export type Organisation = "coupure" | "continu" | "equipes" | "libre";
+
+export type TimeRange = { start: string; end: string };
+
+/** Horaires d'ouverture : pour chaque jour (0 = lundi), 0, 1 ou 2 plages. */
+export type OpeningHours = TimeRange[][];
+
+/** Règles de planification réglées par le gérant. */
+export type Rules = {
+  restDaysPerWeek: number; // 1 ou 2
+  consecutiveRestDays: boolean;
+  minRestHours: number; // repos minimum entre deux journées (11 h en France)
+  maxHoursPerDay: number;
+  maxAmplitudeHours: number; // entre le début et la fin de la journée
+  splitShifts: "never" | "limited" | "often";
+  maxSplitsPerWeek: number;
+  overtimeHours: number; // heures possibles au-delà du contrat
+  weekendFairness: boolean;
+};
 
 export type Post = {
   id: string;
@@ -24,6 +58,12 @@ export type Service = {
   name: string;
   start: string; // "11:00"
   end: string; // "15:00" ("00:00" = minuit)
+  /** Pause non payée comprise dans le créneau (minutes). */
+  breakMinutes?: number;
+  /** Horaires différents certains jours (clé = jour). */
+  overrides?: Record<number, TimeRange>;
+  /** Jours où ce créneau existe (tous si absent). */
+  days?: number[];
 };
 
 export type Unavailability = {
@@ -50,6 +90,7 @@ export type Shift = {
   start: string;
   end: string;
   postId: string;
+  breakMinutes?: number;
 };
 
 /** Clé "jour|serviceId|postId" -> nombre de personnes nécessaires. */
@@ -65,12 +106,17 @@ export type Template = {
 
 export type Establishment = {
   name: string;
-  type: BusinessType;
+  type: ActivityId;
+  organisation: Organisation;
+  opening: OpeningHours;
+  prepMinutes: number; // mise en place avant l'ouverture
+  closeMinutes: number; // rangement après la fermeture
 };
 
 export type AppState = {
   version: number;
   establishment: Establishment;
+  rules: Rules;
   posts: Post[];
   services: Service[];
   employees: Employee[];

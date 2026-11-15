@@ -1,5 +1,5 @@
 import type { AppState, Shift } from "./types";
-import { hoursByEmployee, shiftCoversService } from "./rules";
+import { hoursByEmployee, shiftCoversService, svTime } from "./rules";
 import { DAYS, DAYS_SHORT, formatDayDate, formatHours, formatTime, formatWeekRange } from "./time";
 
 /** Texte prêt à coller dans WhatsApp (*gras* = gras dans WhatsApp). */
@@ -19,14 +19,15 @@ export function whatsappText(state: AppState, week: string, shifts: Shift[], mod
       for (const sv of state.services) {
         const list = day.filter((s) => !used.has(s.id) && shiftCoversService(s, sv));
         if (!list.length) continue;
+        const t = svTime(sv, d);
         list.forEach((s) => used.add(s.id));
         const byPost = state.posts
           .map((p) => {
-            const names = list.filter((s) => s.postId === p.id).map((s) => name(s.employeeId) + (s.start !== sv.start || s.end !== sv.end ? ` (${formatTime(s.start)}-${formatTime(s.end)})` : ""));
+            const names = list.filter((s) => s.postId === p.id).map((s) => name(s.employeeId) + (s.start !== t.start || s.end !== t.end ? ` (${formatTime(s.start)}-${formatTime(s.end)})` : ""));
             return names.length ? `${p.name} : ${names.join(", ")}` : null;
           })
           .filter(Boolean);
-        lines.push(`${sv.name} ${formatTime(sv.start)}-${formatTime(sv.end)}`, ...byPost.map((b) => `  • ${b}`));
+        lines.push(`${sv.name} ${formatTime(t.start)}-${formatTime(t.end)}`, ...byPost.map((b) => `  • ${b}`));
       }
       const rest = day.filter((s) => !used.has(s.id));
       if (rest.length) lines.push(...rest.map((s) => `  • ${name(s.employeeId)} ${formatTime(s.start)}-${formatTime(s.end)}`));

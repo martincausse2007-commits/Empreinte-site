@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import type { AppState, Shift } from "@/lib/types";
-import { computeAlerts, isUnavailable, shiftHours } from "@/lib/rules";
+import { computeAlerts, isUnavailable, serviceActive, shiftHours, svTime } from "@/lib/rules";
 import { DAYS, formatHours, formatTime } from "@/lib/time";
 import { POST_COLORS } from "@/lib/colors";
 import { Button, Field, Modal, cx, inputClass } from "../ui";
@@ -94,26 +94,47 @@ export function ShiftEditor({
 
         <Field label="Horaires">
           <div className="mb-2 flex flex-wrap gap-1.5">
-            {state.services.map((sv) => (
-              <button
-                key={sv.id}
-                type="button"
-                onClick={() => set({ start: sv.start, end: sv.end })}
-                className={cx(
-                  "rounded-full border px-3 py-1 text-[13px]",
-                  draft.start === sv.start && draft.end === sv.end ? "border-brand-500 bg-brand-50 text-brand-700" : "border-slate-200 text-slate-600 hover:bg-slate-50",
-                )}
-              >
-                {sv.name} · {formatTime(sv.start)}–{formatTime(sv.end)}
-              </button>
-            ))}
+            {state.services
+              .filter((sv) => serviceActive(sv, draft.day))
+              .map((sv) => {
+                const t = svTime(sv, draft.day);
+                return (
+                  <button
+                    key={sv.id}
+                    type="button"
+                    onClick={() => set({ start: t.start, end: t.end, breakMinutes: sv.breakMinutes })}
+                    className={cx(
+                      "rounded-full border px-3 py-1 text-[13px]",
+                      draft.start === t.start && draft.end === t.end ? "border-brand-500 bg-brand-50 text-brand-700" : "border-slate-200 text-slate-600 hover:bg-slate-50",
+                    )}
+                  >
+                    {sv.name} · {formatTime(t.start)}–{formatTime(t.end)}
+                  </button>
+                );
+              })}
           </div>
           <div className="flex items-center gap-2">
             <input type="time" className={inputClass} value={draft.start} onChange={(e) => set({ start: e.target.value })} />
             <span className="text-slate-400">→</span>
             <input type="time" className={inputClass} value={draft.end} onChange={(e) => set({ end: e.target.value })} />
           </div>
-          {valid && <p className="mt-1.5 text-xs text-slate-500">Durée : {formatHours(shiftHours(draft))}</p>}
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <span className="text-xs text-slate-500">{valid && <>Temps de travail : {formatHours(shiftHours(draft))}</>}</span>
+            <label className="flex items-center gap-2 text-xs text-slate-600">
+              Pause
+              <select
+                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs"
+                value={draft.breakMinutes ?? 0}
+                onChange={(e) => set({ breakMinutes: Number(e.target.value) || undefined })}
+              >
+                {[0, 15, 20, 30, 45, 60, 90, 120].map((m) => (
+                  <option key={m} value={m}>
+                    {m ? `${m} min` : "aucune"}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </Field>
 
         <Field label="Poste">

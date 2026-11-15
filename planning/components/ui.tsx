@@ -193,3 +193,34 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
     </div>
   );
 }
+
+const TIME_OPTIONS = Array.from({ length: 96 }, (_, i) => `${String(Math.floor(i / 4)).padStart(2, "0")}:${String((i % 4) * 15).padStart(2, "0")}`);
+
+/** Choix d'une heure par pas de 15 min, affichée « 11h30 » (identique sur tous les téléphones). */
+export function TimeSelect({ value, onChange, className, id }: { value: string; onChange: (v: string) => void; className?: string; id?: string }) {
+  const opts = TIME_OPTIONS.includes(value) ? TIME_OPTIONS : [...TIME_OPTIONS, value].sort();
+  return (
+    <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className={cx("h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm tabular-nums outline-none focus:border-brand-500", className)}>
+      {opts.map((t) => (
+        <option key={t} value={t}>
+          {t.endsWith(":00") ? `${Number(t.slice(0, 2))}h` : `${Number(t.slice(0, 2))}h${t.slice(3)}`}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+export function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label?: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={cx("relative h-6 w-11 shrink-0 rounded-full transition", checked ? "bg-brand-600" : "bg-slate-300")}
+    >
+      <span className={cx("absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all", checked ? "left-[22px]" : "left-0.5")} />
+    </button>
+  );
+}

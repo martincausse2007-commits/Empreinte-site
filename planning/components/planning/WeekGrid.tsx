@@ -15,7 +15,7 @@ import {
 } from "@dnd-kit/core";
 import { Plus } from "lucide-react";
 import type { AppState, Employee, Shift } from "@/lib/types";
-import { coverage, hoursByEmployee, isUnavailable } from "@/lib/rules";
+import { coverage, hoursByEmployee, isUnavailable, serviceActive } from "@/lib/rules";
 import { DAYS_SHORT, formatDayDate } from "@/lib/time";
 import { POST_COLORS } from "@/lib/colors";
 import { Avatar, cx } from "../ui";
@@ -224,7 +224,7 @@ function Cell({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `cell|${e.id}|${day}` });
   const allDay = isUnavailable(e, day);
-  const partial = state.services.filter((sv) => !allDay && isUnavailable(e, day, sv.id));
+  const partial = state.services.filter((sv) => !allDay && serviceActive(sv, day) && isUnavailable(e, day, sv.id));
 
   return (
     <div

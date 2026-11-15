@@ -7,6 +7,7 @@ const ROUTES: Record<string, string> = {
   accueil: "/",
   connexion: "/connexion",
   inscription: "/inscription",
+  configuration: "/configuration",
   planning: "/planning",
   equipe: "/equipe",
   besoins: "/besoins",
