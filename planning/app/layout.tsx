@@ -7,7 +7,7 @@ import { ToastProvider } from "@/components/ui";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "Créno — Le planning d'équipe en 15 minutes",
+  title: "Quinzo — Le planning d'équipe en 15 minutes",
   description: "Planning d'équipe pour restaurants et boutiques : génération automatique, alertes, partage WhatsApp.",
 };
 

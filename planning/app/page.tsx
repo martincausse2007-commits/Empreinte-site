@@ -26,13 +26,13 @@ export default function Home() {
 
       <section className="mx-auto max-w-6xl px-5 pt-10 pb-16 text-center sm:pt-20">
         <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
-          <Clock size={13} /> Restaurants & boutiques
+          <Clock size={13} /> Restaurants, commerces, salons, hôtels…
         </span>
         <h1 className="mx-auto mt-5 max-w-3xl text-4xl font-semibold tracking-tight text-balance sm:text-6xl">
           Le planning de votre équipe en <span className="text-brand-600">15 minutes</span>, pas 3 heures.
         </h1>
         <p className="mx-auto mt-5 max-w-xl text-lg text-slate-500 text-balance">
-          Créno génère la semaine en respectant contrats, repos et disponibilités. Vous ajustez, vous partagez, c&apos;est fini.
+          Quinzo génère la semaine en respectant contrats, repos et disponibilités. Vous ajustez, vous partagez, c&apos;est fini.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link href="/planning" className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 font-medium text-white shadow-lg shadow-brand-600/25 hover:bg-brand-700 sm:w-auto">
@@ -57,7 +57,7 @@ export default function Home() {
       </section>
 
       <footer className="border-t border-slate-100 py-6 text-center text-xs text-slate-400">
-        <CalendarCheck2 size={14} className="mr-1 inline" /> Créno — maquette de démonstration
+        <CalendarCheck2 size={14} className="mr-1 inline" /> Quinzo — maquette de démonstration
       </footer>
     </div>
   );

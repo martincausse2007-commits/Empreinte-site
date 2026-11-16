@@ -291,7 +291,7 @@ function EmptyWeek({ onGenerate, onCopy, onTemplates, generating }: { onGenerate
       </div>
       <h2 className="text-lg font-semibold">Cette semaine est vide</h2>
       <p className="mx-auto mt-1.5 max-w-md text-sm text-slate-500">
-        Laissez Créno préparer une proposition complète à partir de vos besoins et des disponibilités de l&apos;équipe. Vous ajusterez ensuite en glisser-déposer.
+        Laissez Quinzo préparer une proposition complète à partir de vos besoins et des disponibilités de l&apos;équipe. Vous ajusterez ensuite en glisser-déposer.
       </p>
       <div className="mt-6 flex flex-col items-center justify-center gap-2 sm:flex-row">
         <Button variant="primary" size="lg" onClick={onGenerate} disabled={generating} className="w-full sm:w-auto">

@@ -1,4 +1,4 @@
-# Créno — planning d'équipe (restaurants & boutiques)
+# Quinzo — le planning d'équipe en 15 minutes
 
 Étape 1 : **maquette cliquable** avec de fausses données (10 employés de restaurant).
 Les données sont gardées dans le navigateur (localStorage) ; Supabase arrive à l'étape 2.

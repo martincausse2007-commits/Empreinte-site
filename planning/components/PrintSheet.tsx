@@ -13,7 +13,7 @@ export function PrintSheet({ state, week, shifts }: { state: AppState; week: str
           <div className="text-base font-bold">{state.establishment.name}</div>
           <div className="text-xs">Planning de la semaine du {formatWeekRange(week)}</div>
         </div>
-        <div className="text-[9px] text-slate-500">Généré avec Créno</div>
+        <div className="text-[9px] text-slate-500">Généré avec Quinzo</div>
       </div>
       <table className="w-full border-collapse">
         <thead>
