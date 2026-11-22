@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import type { AppState, Shift } from "@/lib/types";
-import { computeAlerts, isUnavailable, serviceActive, shiftHours, svTime } from "@/lib/rules";
+import { isUnavailable, serviceActive, shiftHours, svTime } from "@/lib/rules";
+import { computeAlerts } from "@/lib/engine/check";
 import { DAYS, formatHours, formatTime } from "@/lib/time";
 import { POST_COLORS } from "@/lib/colors";
 import { Button, Field, Modal, cx, inputClass } from "../ui";
@@ -29,13 +30,16 @@ export function ShiftEditor({
   const set = (patch: Partial<Shift>) => setDraft((d) => ({ ...d, ...patch }));
   const employee = state.employees.find((e) => e.id === draft.employeeId);
 
-  // Aperçu des alertes que provoquerait ce créneau
+  // Aperçu, AVANT d'enregistrer, de ce que ce créneau provoquerait (même module que le bandeau)
   const preview = useMemo(() => {
     const next = [...shifts.filter((s) => s.id !== draft.id), draft];
+    const before = new Set(computeAlerts(state, shifts.filter((s) => s.id !== draft.id)).map((a) => a.id));
     return computeAlerts(state, next).filter(
-      (a) => a.severity === "error" && (a.employeeId === draft.employeeId || a.shiftIds?.includes(draft.id)),
+      (a) => a.employeeId === draft.employeeId && (a.shiftIds?.includes(draft.id) || a.severity === "error" || !before.has(a.id)),
     );
   }, [state, shifts, draft]);
+  const previewErrors = preview.filter((a) => a.severity === "error");
+  const previewWarnings = preview.filter((a) => a.severity === "warning");
 
   const valid = draft.employeeId && draft.start && draft.end && draft.start !== draft.end;
 
@@ -157,17 +161,31 @@ export function ShiftEditor({
           </div>
         </Field>
 
-        {preview.length > 0 && (
-          <div className="space-y-1.5 rounded-xl border border-red-200 bg-red-50 p-3">
-            {preview.map((a) => (
-              <div key={a.id} className="flex gap-2 text-[13px] text-red-800">
-                <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+        {previewErrors.length > 0 && (
+          <div className="space-y-1.5 rounded-xl border border-red-300 bg-red-50 p-3" role="alert">
+            <div className="text-xs font-semibold tracking-wide text-red-800 uppercase">Interdit</div>
+            {previewErrors.map((a) => (
+              <div key={a.id} className="flex gap-2 text-[13px] text-red-900">
+                <AlertTriangle size={15} className="mt-0.5 shrink-0 text-red-600" aria-hidden />
                 <span>
                   <b className="font-semibold">{a.title}</b> — {a.detail}
                 </span>
               </div>
             ))}
-            <p className="pt-1 text-xs text-red-700/80">Vous pouvez enregistrer quand même : l&apos;alerte restera visible sur le planning.</p>
+            <p className="pt-1 text-xs text-red-800">Vous pouvez enregistrer quand même : l&apos;alerte restera visible sur le planning.</p>
+          </div>
+        )}
+        {previewWarnings.length > 0 && (
+          <div className="space-y-1.5 rounded-xl border border-amber-300 bg-amber-50 p-3">
+            <div className="text-xs font-semibold tracking-wide text-amber-900 uppercase">À vérifier</div>
+            {previewWarnings.map((a) => (
+              <div key={a.id} className="flex gap-2 text-[13px] text-amber-950">
+                <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-700" aria-hidden />
+                <span>
+                  <b className="font-semibold">{a.title}</b> — {a.detail}
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </div>

@@ -69,7 +69,7 @@ export function WeekGrid({ state, week, shifts, errorShifts, onEdit, onAdd, onMo
               const needed = dayCov.reduce((a, c) => a + c.needed, 0);
               const missing = dayCov.reduce((a, c) => a + Math.max(0, c.needed - c.assigned), 0);
               return (
-                <div key={day} className={cx("border-l border-slate-100 px-2.5 py-2.5", day >= 5 && "bg-slate-50/60")}>
+                <div key={day} id={`day-${day}`} className={cx("border-l border-slate-100 px-2.5 py-2.5", day >= 5 && "bg-slate-50/60")}>
                   <div className="text-[13px] font-semibold">
                     {d} <span className="font-normal text-slate-500">{formatDayDate(week, day)}</span>
                   </div>
@@ -173,7 +173,7 @@ function Row({
   postOf: (id: string) => AppState["posts"][number] | undefined;
 }) {
   return (
-    <div className={cx(cols, "border-b border-slate-100 last:border-b-0")}>
+    <div id={`row-${e.id}`} className={cx(cols, "scroll-mt-24 border-b border-slate-100 last:border-b-0")}>
       <div className="sticky left-0 z-[5] flex items-center gap-2.5 bg-white px-3 py-2 sm:px-4">
         <Avatar id={e.id} name={`${e.firstName} ${e.lastName}`} size={30} />
         <div className="min-w-0 flex-1">
@@ -229,6 +229,7 @@ function Cell({
   return (
     <div
       ref={setNodeRef}
+      id={`cell-${e.id}-${day}`}
       onClick={(ev) => ev.target === ev.currentTarget && onAdd(e.id, day)}
       className={cx(
         "group/cell relative min-h-[64px] cursor-copy border-l border-slate-100 p-1.5 transition-colors",
@@ -289,6 +290,7 @@ function DraggableShift({
   return (
     <button
       ref={setNodeRef}
+      id={`shift-${shift.id}`}
       {...listeners}
       {...attributes}
       onClick={onClick}

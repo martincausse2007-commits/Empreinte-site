@@ -3,21 +3,26 @@
 import { useState } from "react";
 import { Copy, LayoutTemplate, Repeat, Save, Trash2 } from "lucide-react";
 import { useApp } from "@/lib/store";
-import { applyTemplate, copyWeek, makeTemplate } from "@/lib/templates";
+import { copyWeek, makeTemplate } from "@/lib/templates";
+import { useApplyTemplate } from "@/components/planning/PlanningView";
 import { addWeeks, formatWeekRange } from "@/lib/time";
-import { Button, Card, Field, Modal, PageHeader, cx, inputClass, useToast } from "@/components/ui";
+import { Button, Card, Field, Modal, PageHeader, cx, inputClass, useConfirm, useToast } from "@/components/ui";
 
 export default function TemplatesPage() {
   const { state, update, setShifts } = useApp();
   const toast = useToast();
+  const confirm = useConfirm();
+  const applyT = useApplyTemplate();
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
   const [weeks, setWeeks] = useState(1);
   const week = state.currentWeek;
 
-  function copyPrev() {
+  async function copyPrev() {
     const prev = state.plans[addWeeks(week, -1)] ?? [];
     if (!prev.length) return toast("La semaine précédente est vide");
+    const cur = state.plans[week] ?? [];
+    if (cur.length && !(await confirm({ title: "Écraser la semaine ?", text: `Les ${cur.length} créneaux de la semaine affichée seront remplacés.`, confirmLabel: "Copier" }))) return;
     setShifts(week, () => copyWeek(prev));
     toast("Semaine précédente copiée");
   }
@@ -90,8 +95,8 @@ export default function TemplatesPage() {
               variant="primary"
               size="sm"
               className="w-full"
-              onClick={() => {
-                update((s) => applyTemplate(s, t, s.currentWeek));
+              onClick={async () => {
+                if (!(await applyT(t))) return;
                 toast(t.weeks.length === 1 ? `« ${t.name} » appliqué` : `Roulement appliqué du ${formatWeekRange(week).split(" – ")[0]} sur ${t.weeks.length} semaines`);
               }}
             >

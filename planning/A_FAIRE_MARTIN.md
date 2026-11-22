@@ -5,7 +5,12 @@ Je le mets à jour à chaque lot. Coche les cases au fur et à mesure.
 
 ---
 
-## Maintenant (Lot 1 terminé)
+## Maintenant (Lot 3 terminé)
+
+- [ ] **Tester le nouveau moteur** sur la version de test (même lien, recharge la page) — voir le message dans la conversation.
+- [ ] **Vérifier tes règles** (Réglages → Règles du planning) avec ta convention collective : 10 h par jour, 11 h de repos, etc. Ce sont des réglages, pas un avis juridique.
+
+## Lot 1 (fait)
 
 - [ ] **Tester sur ton téléphone** la version de test (lien claude.ai envoyé dans la conversation) :
   - Les couleurs terracotta te plaisent-elles ?

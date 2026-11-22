@@ -1,33 +1,37 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, ChevronLeft, ChevronRight, Copy, LayoutTemplate, Loader2, MoreHorizontal, Share2, Sparkles, Trash2 } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Copy, LayoutTemplate, Loader2, MoreHorizontal, Plus, Redo2, Share2, Sparkles, Trash2, Undo2, UserPlus } from "lucide-react";
 import { uid, useApp } from "@/lib/store";
 import type { Shift } from "@/lib/types";
-import { computeAlerts, serviceActive, svTime } from "@/lib/rules";
-import { generateWeek } from "@/lib/generate";
+import { serviceActive, svTime } from "@/lib/rules";
+import { computeAlerts } from "@/lib/engine/check";
+import { applyReinforcements, generateWeek, suggestReinforcements } from "@/lib/generate";
+import type { Issue } from "@/lib/engine/check";
+import type { Template } from "@/lib/types";
 import { applyTemplate, copyWeek } from "@/lib/templates";
-import { addWeeks, formatWeekRange, isoWeekNumber } from "@/lib/time";
-import { Button, Card, Modal, buttonClass, cx, useToast } from "../ui";
+import { addWeeks, formatHours, formatTime, formatWeekRange, isoWeekNumber } from "@/lib/time";
+import { shiftHours } from "@/lib/rules";
+import { Button, Card, Modal, buttonClass, cx, useConfirm, useToast } from "../ui";
 import { useRouter } from "next/navigation";
 import { useHistoryLayer } from "@/lib/history";
 import { WeekGrid } from "./WeekGrid";
 import { DayView } from "./DayView";
 import { AlertsPanel } from "./AlertsPanel";
 import { ShiftEditor } from "./ShiftEditor";
-import { shiftsInError } from "./helpers";
+import { flash, shiftsInError } from "./helpers";
 
 export function PlanningView() {
-  const { state, ready, update, setShifts } = useApp();
+  const { state, ready, update, setShifts, undo, redo, canUndo, canRedo } = useApp();
   const toast = useToast();
+  const confirm = useConfirm();
   const week = state.currentWeek;
   const shifts = useMemo(() => state.plans[week] ?? [], [state.plans, week]);
   const alerts = useMemo(() => computeAlerts(state, shifts), [state, shifts]);
   const errorShifts = useMemo(() => shiftsInError(alerts, shifts), [alerts, shifts]);
 
   const [editing, setEditing] = useState<{ shift: Shift; isNew: boolean } | null>(null);
-  const [confirmGen, setConfirmGen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -40,8 +44,54 @@ export function PlanningView() {
 
   const goWeek = (n: number) => update((s) => ({ ...s, currentWeek: addWeeks(s.currentWeek, n) }));
 
+  // Annuler / rétablir au clavier : Ctrl+Z, Ctrl+Maj+Z ou Ctrl+Y (hors champs de saisie)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest("input, textarea, select, [contenteditable]")) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if ((k === "z" && e.shiftKey) || k === "y") {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
+
+  // Heures de contrat non planifiées → renforts proposés
+  const reinforcements = useMemo(() => (shifts.length ? suggestReinforcements(state, shifts) : []), [state, shifts]);
+  const unplanned = alerts.filter((a) => a.kind === "contractUnder").length;
+  const [showReinf, setShowReinf] = useState(false);
+
+  function addReinforcements(list = reinforcements) {
+    setShifts(week, (cur) => applyReinforcements(cur, list));
+    toast(list.length > 1 ? `${list.length} renforts ajoutés` : "Renfort ajouté");
+  }
+
+  /** Va à la case concernée par une alerte. */
+  const goToIssue = useCallback(
+    (a: Issue) => {
+      if (a.day !== undefined) setDay(a.day);
+      const s = a.shiftIds?.length ? shifts.find((x) => x.id === a.shiftIds![0]) : undefined;
+      if (s) {
+        setEditing({ shift: s, isNew: false });
+        return;
+      }
+      const mobile = window.matchMedia("(max-width: 767px)").matches;
+      if (a.employeeId) {
+        if (mobile) setMobileView("week");
+        setTimeout(() => flash(a.day !== undefined ? `cell-${a.employeeId}-${a.day}` : `row-${a.employeeId}`) || flash(`row-${a.employeeId}`), 60);
+      } else if (a.day !== undefined && !mobile) setTimeout(() => flash(`day-${a.day}`), 60);
+    },
+    [shifts],
+  );
+
   function runGenerate() {
-    setConfirmGen(false);
     setGenerating(true);
     const t0 = performance.now();
     setTimeout(() => {
@@ -58,15 +108,24 @@ export function PlanningView() {
     }, 450);
   }
 
-  function onGenerateClick() {
-    if (shifts.length) setConfirmGen(true);
-    else runGenerate();
+  async function onGenerateClick() {
+    if (
+      shifts.length &&
+      !(await confirm({
+        title: "Remplacer la semaine ?",
+        text: `Les ${shifts.length} créneaux actuels seront remplacés par une nouvelle proposition. Vous pourrez revenir en arrière avec « Annuler ».`,
+        confirmLabel: "Générer",
+      }))
+    )
+      return;
+    runGenerate();
   }
 
-  function copyPrevious() {
+  async function copyPrevious() {
     setMenuOpen(false);
     const prev = state.plans[addWeeks(week, -1)] ?? [];
     if (!prev.length) return toast("La semaine précédente est vide");
+    if (shifts.length && !(await confirm({ title: "Écraser la semaine ?", text: `Les ${shifts.length} créneaux de cette semaine seront remplacés par ceux de la semaine précédente.`, confirmLabel: "Copier" }))) return;
     setShifts(week, () => copyWeek(prev));
     toast("Semaine précédente copiée");
   }
@@ -89,6 +148,8 @@ export function PlanningView() {
   }
 
   function onMove(shiftId: string, employeeId: string, d: number, copy: boolean) {
+    const s0 = shifts.find((x) => x.id === shiftId);
+    if (!s0 || (!copy && s0.employeeId === employeeId && s0.day === d)) return; // rien ne bouge : pas d'étape d'annulation
     setShifts(week, (list) => {
       const s = list.find((x) => x.id === shiftId);
       if (!s) return list;
@@ -132,6 +193,14 @@ export function PlanningView() {
         </div>
 
         <div className="flex items-center gap-2">
+          <div className="flex items-center">
+            <Button variant="ghost" size="icon" onClick={undo} disabled={!canUndo} aria-label="Annuler (Ctrl+Z)" title="Annuler (Ctrl+Z)">
+              <Undo2 size={18} />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={redo} disabled={!canRedo} aria-label="Rétablir (Ctrl+Maj+Z)" title="Rétablir (Ctrl+Maj+Z)">
+              <Redo2 size={18} />
+            </Button>
+          </div>
           <Button variant="primary" onClick={onGenerateClick} disabled={generating} className="flex-1 lg:flex-none">
             {generating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
             Générer la semaine
@@ -163,8 +232,9 @@ export function PlanningView() {
                     icon={Trash2}
                     danger
                     label="Vider la semaine"
-                    onClick={() => {
+                    onClick={async () => {
                       setMenuOpen(false);
+                      if (!(await confirm({ title: "Vider la semaine ?", text: `Les ${shifts.length} créneaux de la semaine seront retirés. Vous pourrez revenir en arrière avec « Annuler ».`, confirmLabel: "Vider", danger: true }))) return;
                       setShifts(week, () => []);
                       toast("Semaine vidée");
                     }}
@@ -181,15 +251,53 @@ export function PlanningView() {
       ) : (
         <>
           <div className="mb-4">
-            <AlertsPanel
-              alerts={alerts}
-              onSelect={(a) => {
-                if (a.day !== undefined) setDay(a.day);
-                const s = a.shiftIds?.length ? shifts.find((x) => x.id === a.shiftIds![0]) : undefined;
-                if (s) setEditing({ shift: s, isNew: false });
-              }}
-            />
+            <AlertsPanel alerts={alerts} onSelect={goToIssue} />
           </div>
+
+          {unplanned > 0 && reinforcements.length > 0 && (
+            <Card className="mb-4 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+                    <UserPlus size={18} />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold">
+                      {formatHours(reinforcements.reduce((a, r) => a + shiftHours(r.shift) - (r.replaces ? shiftHours(shifts.find((x) => x.id === r.replaces) ?? r.shift) : 0), 0))} de contrat à placer
+                    </div>
+                    <p className="text-sm text-slate-600">
+                      Ces heures sont payées. Quinzo propose {reinforcements.length} renfort{reinforcements.length > 1 ? "s" : ""} sur les services les plus chargés, sans enfreindre vos règles.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => setShowReinf((v) => !v)} aria-expanded={showReinf}>
+                    {showReinf ? "Masquer" : "Voir le détail"}
+                  </Button>
+                  <Button size="sm" variant="primary" onClick={() => addReinforcements()}>
+                    <Plus size={14} /> Tout ajouter
+                  </Button>
+                </div>
+              </div>
+              {showReinf && (
+                <ul className="mt-3 divide-y divide-slate-100 border-t border-slate-100">
+                  {reinforcements.map((r) => {
+                    const e = state.employees.find((x) => x.id === r.shift.employeeId);
+                    return (
+                      <li key={r.shift.id + (r.replaces ?? "")} className="flex min-h-11 items-center gap-3 py-2 text-sm">
+                        <span className="min-w-0 flex-1">
+                          <b className="font-semibold">{e?.firstName}</b> — {r.reason} · {formatTime(r.shift.start)}–{formatTime(r.shift.end)}
+                        </span>
+                        <Button size="sm" onClick={() => addReinforcements([r])}>
+                          Ajouter
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Card>
+          )}
 
           {/* Bascule Jour / Semaine sur mobile */}
           <div className="mb-3 flex rounded-xl bg-slate-200/60 p-1 md:hidden">
@@ -248,28 +356,6 @@ export function PlanningView() {
         />
       )}
 
-      <Modal
-        open={confirmGen}
-        onClose={() => setConfirmGen(false)}
-        title="Régénérer la semaine ?"
-        footer={
-          <>
-            <div className="flex-1" />
-            <Button variant="ghost" onClick={() => setConfirmGen(false)}>
-              Annuler
-            </Button>
-            <Button variant="primary" onClick={runGenerate}>
-              <Sparkles size={16} /> Générer
-            </Button>
-          </>
-        }
-      >
-        <p className="text-sm text-slate-600">
-          Le planning actuel de la semaine ({shifts.length} créneaux) sera remplacé par une nouvelle proposition qui respecte les disponibilités, les contrats, vos règles de repos et de coupures
-          et l&apos;équité des week-ends.
-        </p>
-      </Modal>
-
       <TemplatesModal open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
     </div>
   );
@@ -310,9 +396,30 @@ function EmptyWeek({ onGenerate, onCopy, onTemplates, generating }: { onGenerate
   );
 }
 
-export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+/** Applique un modèle ou un roulement, avec confirmation si des semaines sont déjà remplies. */
+export function useApplyTemplate() {
   const { state, update } = useApp();
+  const confirm = useConfirm();
+  return async (t: Template) => {
+    const filled = t.weeks.map((_, i) => state.plans[addWeeks(state.currentWeek, i)] ?? []).filter((w) => w.length).length;
+    if (
+      filled &&
+      !(await confirm({
+        title: "Écraser le planning existant ?",
+        text: t.weeks.length > 1 ? `${filled} des ${t.weeks.length} semaines concernées sont déjà remplies : elles seront remplacées.` : "La semaine affichée est déjà remplie : elle sera remplacée.",
+        confirmLabel: "Appliquer",
+      }))
+    )
+      return false;
+    update((s) => applyTemplate(s, t, s.currentWeek), { record: true });
+    return true;
+  };
+}
+
+export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { state } = useApp();
   const toast = useToast();
+  const applyT = useApplyTemplate();
   return (
     <Modal open={open} onClose={onClose} title="Appliquer un modèle">
       <p className="mb-4 text-sm text-slate-500">
@@ -334,8 +441,8 @@ export function TemplatesModal({ open, onClose }: { open: boolean; onClose: () =
             <Button
               size="sm"
               variant="primary"
-              onClick={() => {
-                update((s) => applyTemplate(s, t, s.currentWeek));
+              onClick={async () => {
+                if (!(await applyT(t))) return;
                 onClose();
                 toast(t.weeks.length === 1 ? `« ${t.name} » appliqué` : `Roulement appliqué sur ${t.weeks.length} semaines`);
               }}

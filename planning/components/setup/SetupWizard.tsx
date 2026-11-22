@@ -597,6 +597,10 @@ export function RulesFields({ rules: r, setRules }: { rules: Rules; setRules: (r
       />
       <Question title="Heures au-delà du contrat" hint="0 = jamais d'heures supplémentaires dans le planning généré." aside={unit(<Stepper value={r.overtimeHours} onChange={(v) => setRules({ overtimeHours: v })} min={0} max={15} />)} />
       <Question title="Répartir les week-ends équitablement" hint="Ceux qui ont beaucoup travaillé le week-end passent en dernier." aside={<Toggle checked={r.weekendFairness} onChange={(v) => setRules({ weekendFairness: v })} label="Équité des week-ends" />} />
+      <p className="py-4 text-xs text-slate-600">
+        Quinzo vérifie aussi toujours les 48 h maximum par semaine, les 35 h de repos d&apos;affilée et la pause de 20 min dès 6 h de travail.{" "}
+        <b className="font-semibold">Ces règles sont des aides réglables, à adapter à la convention collective de votre établissement : ce n&apos;est pas un conseil juridique.</b>
+      </p>
     </div>
   );
 }

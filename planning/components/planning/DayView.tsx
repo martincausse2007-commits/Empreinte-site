@@ -2,7 +2,7 @@
 
 import { Plus } from "lucide-react";
 import type { AppState, Shift } from "@/lib/types";
-import type { Alert } from "@/lib/rules";
+import type { Alert } from "@/lib/engine/check";
 import { coverage, getNeed, hoursByEmployee, serviceActive, shiftCoversService, svTime } from "@/lib/rules";
 import { DAYS, DAYS_SHORT, dateOfDay, formatTime } from "@/lib/time";
 import { POST_COLORS } from "@/lib/colors";
@@ -103,9 +103,10 @@ export function DayView({ state, week, shifts, alerts, errorShifts, day, onDay, 
                           return (
                             <button
                               key={s.id}
+                              id={`dshift-${s.id}`}
                               onClick={() => onEdit(s)}
                               className={cx(
-                                "flex items-center gap-2 rounded-full border bg-white py-1 pr-3 pl-1 text-sm shadow-xs active:scale-[0.98]",
+                                "flex min-h-11 items-center gap-2 rounded-full border bg-white py-1 pr-3 pl-1 text-sm shadow-xs active:scale-[0.98]",
                                 err ? "border-red-300 ring-2 ring-red-300/60" : "border-slate-200",
                               )}
                             >
@@ -116,7 +117,8 @@ export function DayView({ state, week, shifts, alerts, errorShifts, day, onDay, 
                                   {formatTime(s.start)}–{formatTime(s.end)}
                                 </span>
                               )}
-                              {err && <AlertTriangle size={13} className="text-red-600" />}
+                              {s.extra && <span className="rounded-full bg-slate-100 px-1.5 text-[11px] font-semibold text-slate-700">Renfort</span>}
+                              {err && <AlertTriangle size={13} className="text-red-600" aria-label="Problème à corriger" />}
                             </button>
                           );
                         })}
@@ -154,7 +156,7 @@ export function DayView({ state, week, shifts, alerts, errorShifts, day, onDay, 
               {dayShifts
                 .filter((s) => !used.has(s.id))
                 .map((s) => (
-                  <button key={s.id} onClick={() => onEdit(s)} className="rounded-full border border-slate-200 px-3 py-1 text-sm">
+                  <button key={s.id} id={`dshift-${s.id}`} onClick={() => onEdit(s)} className="min-h-11 rounded-full border border-slate-200 px-3 py-1 text-sm">
                     {emp(s.employeeId)?.firstName} · {formatTime(s.start)}–{formatTime(s.end)}
                   </button>
                 ))}

@@ -18,8 +18,9 @@ Puis ouvrir http://localhost:3000
 
 - `app/` : les pages (accueil, connexion, inscription, planning, équipe, besoins, modèles, partage, réglages, lien public `/p/...`)
 - `components/planning/` : grille semaine (glisser-déposer), vue jour mobile, alertes, édition d'un créneau
-- `lib/generate.ts` : génération automatique de la semaine
-- `lib/rules.ts` : calcul des heures, de la couverture et des alertes
+- `lib/engine/check.ts` : LE module de vérification (règles interdites en rouge, préférences en ambre), utilisé partout
+- `lib/generate.ts` : génération automatique de la semaine et propositions de renforts
+- `lib/rules.ts` : calcul des heures et de la couverture
 - `lib/demo-data.ts` : les fausses données
 - `lib/history.ts` : bouton retour du téléphone, Échap, flèche « ← Retour »
 - `app/globals.css` : le thème (couleurs terracotta) — aucune couleur ailleurs

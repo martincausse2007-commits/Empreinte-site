@@ -205,7 +205,11 @@ function windowsForDay(ranges: TimeRange[], org: Organisation, teams: number, pr
   const last = ws[ws.length - 1].end + close;
 
   if (org === "coupure" || org === "libre") {
-    return ws.map((w) => ({ w: { start: w.start - prep, end: w.end + close }, breakMin: 0 }));
+    // Pause obligatoire de 20 min dès 6 h de travail
+    return ws.map((w) => {
+      const span = w.end + close - (w.start - prep);
+      return { w: { start: w.start - prep, end: w.end + close }, breakMin: span >= 6 * 60 ? 20 : 0 };
+    });
   }
 
   let n = org === "equipes" ? teams : 1;

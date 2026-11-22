@@ -1,4 +1,4 @@
-import type { Alert } from "@/lib/rules";
+import type { Alert } from "@/lib/engine/check";
 import type { AppState, Employee, Shift } from "@/lib/types";
 
 /** Ids des shifts concernés par une alerte bloquante (pour les entourer en rouge). */
@@ -10,6 +10,16 @@ export function shiftsInError(alerts: Alert[], shifts: Shift[]): Set<string> {
     else if (a.employeeId) shifts.filter((s) => s.employeeId === a.employeeId).forEach((s) => out.add(s.id));
   }
   return out;
+}
+
+/** Fait défiler jusqu'à un élément et le met en évidence un instant. */
+export function flash(id: string) {
+  const el = document.getElementById(id);
+  if (!el) return false;
+  el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+  el.classList.add("ring-4", "ring-brand-400", "ring-inset");
+  setTimeout(() => el.classList.remove("ring-4", "ring-brand-400", "ring-inset"), 1800);
+  return true;
 }
 
 export function fullName(e: Employee) {

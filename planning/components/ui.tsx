@@ -244,3 +244,43 @@ export function BackButton({ fallback, label = "Retour", onClick, className }: {
     </button>
   );
 }
+
+// ---- Confirmation avant une action qui écrase des données ---------------------
+
+type ConfirmOptions = { title: string; text: string; confirmLabel?: string; danger?: boolean };
+const ConfirmCtx = createContext<(o: ConfirmOptions) => Promise<boolean>>(async () => true);
+
+/** Fenêtre « Êtes-vous sûr ? » utilisable partout : `if (await confirm({...}))`. */
+export function ConfirmProvider({ children }: { children: ReactNode }) {
+  const [pending, setPending] = useState<(ConfirmOptions & { resolve: (v: boolean) => void }) | null>(null);
+  const ask = useCallback((o: ConfirmOptions) => new Promise<boolean>((resolve) => setPending({ ...o, resolve })), []);
+  const close = (v: boolean) => {
+    pending?.resolve(v);
+    setPending(null);
+  };
+  return (
+    <ConfirmCtx.Provider value={ask}>
+      {children}
+      <Modal
+        open={!!pending}
+        onClose={() => close(false)}
+        title={pending?.title ?? ""}
+        footer={
+          <>
+            <div className="flex-1" />
+            <Button variant="ghost" onClick={() => close(false)}>
+              Annuler
+            </Button>
+            <Button variant={pending?.danger ? "danger" : "primary"} onClick={() => close(true)}>
+              {pending?.confirmLabel ?? "Confirmer"}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-600">{pending?.text}</p>
+      </Modal>
+    </ConfirmCtx.Provider>
+  );
+}
+
+export const useConfirm = () => useContext(ConfirmCtx);

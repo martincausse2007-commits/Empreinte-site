@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { AppProvider } from "@/lib/store";
-import { ToastProvider } from "@/components/ui";
+import { ConfirmProvider, ToastProvider } from "@/components/ui";
 import { NavTracker } from "@/components/NavTracker";
 
 // Police Inter hébergée dans le projet (aucun appel à Google Fonts).
@@ -30,8 +30,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className="min-h-dvh font-sans antialiased">
         <AppProvider>
           <ToastProvider>
-            <NavTracker />
-            {children}
+            <ConfirmProvider>
+              <NavTracker />
+              {children}
+            </ConfirmProvider>
           </ToastProvider>
         </AppProvider>
       </body>

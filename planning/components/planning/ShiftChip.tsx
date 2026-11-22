@@ -38,6 +38,9 @@ export function ShiftChip({
           {formatTime(shift.start)} – {formatTime(shift.end)}
         </span>
       </div>
+      {shift.extra && (
+        <div className="mt-0.5 text-[11px] font-semibold">Renfort</div>
+      )}
       {showPost && post && (
         <div className="mt-0.5 flex items-center gap-1 text-[11px]">
           <span className={cx("h-1.5 w-1.5 rounded-full", c.dot)} />

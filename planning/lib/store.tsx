@@ -3,7 +3,7 @@
 // « Magasin » de données de la maquette : tout est gardé dans le navigateur
 // (localStorage). À l'étape 2, ce fichier sera remplacé par Supabase.
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { AppState, Shift } from "./types";
 import { createDemoState, STATE_VERSION } from "./demo-data";
 
@@ -12,8 +12,14 @@ const KEY = "planning-demo-state";
 type Ctx = {
   state: AppState;
   ready: boolean;
-  update: (fn: (s: AppState) => AppState) => void;
+  /** `record: true` = la modification des plannings peut être annulée. */
+  update: (fn: (s: AppState) => AppState, opts?: { record?: boolean }) => void;
+  /** Modifie les créneaux d'une semaine (toujours annulable). */
   setShifts: (week: string, fn: (shifts: Shift[]) => Shift[]) => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
   reset: () => void;
   replace: (s: AppState) => void;
 };
@@ -51,16 +57,74 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [state, ready]);
 
-  const update = useCallback((fn: (s: AppState) => AppState) => setState(fn), []);
-  const setShifts = useCallback(
-    (week: string, fn: (shifts: Shift[]) => Shift[]) =>
-      setState((s) => ({ ...s, plans: { ...s.plans, [week]: fn(s.plans[week] ?? []) } })),
-    [],
-  );
-  const reset = useCallback(() => setState(createDemoState()), []);
-  const replace = useCallback((s: AppState) => setState(s), []);
+  // ---- Annuler / rétablir (sur les plannings uniquement, 50 étapes) ----------
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  });
+  const past = useRef<AppState["plans"][]>([]);
+  const future = useRef<AppState["plans"][]>([]);
+  const [, setTick] = useState(0);
+  const remember = useCallback(() => {
+    past.current.push(stateRef.current.plans);
+    if (past.current.length > 50) past.current.shift();
+    future.current = [];
+    setTick((t) => t + 1);
+  }, []);
+  const clearHistory = useCallback(() => {
+    past.current = [];
+    future.current = [];
+    setTick((t) => t + 1);
+  }, []);
 
-  return <AppContext.Provider value={{ state, ready, update, setShifts, reset, replace }}>{children}</AppContext.Provider>;
+  const update = useCallback(
+    (fn: (s: AppState) => AppState, opts?: { record?: boolean }) => {
+      if (opts?.record) remember();
+      setState(fn);
+    },
+    [remember],
+  );
+  const setShifts = useCallback(
+    (week: string, fn: (shifts: Shift[]) => Shift[]) => {
+      remember();
+      setState((s) => ({ ...s, plans: { ...s.plans, [week]: fn(s.plans[week] ?? []) } }));
+    },
+    [remember],
+  );
+  const undo = useCallback(() => {
+    const prev = past.current.pop();
+    if (!prev) return;
+    future.current.push(stateRef.current.plans);
+    setState((s) => ({ ...s, plans: prev }));
+    setTick((t) => t + 1);
+  }, []);
+  const redo = useCallback(() => {
+    const next = future.current.pop();
+    if (!next) return;
+    past.current.push(stateRef.current.plans);
+    setState((s) => ({ ...s, plans: next }));
+    setTick((t) => t + 1);
+  }, []);
+  const reset = useCallback(() => {
+    clearHistory();
+    setState(createDemoState());
+  }, [clearHistory]);
+  const replace = useCallback(
+    (s: AppState) => {
+      clearHistory();
+      setState(s);
+    },
+    [clearHistory],
+  );
+
+  return (
+    <AppContext.Provider
+      // eslint-disable-next-line react-hooks/refs -- les piles sont relues à chaque changement grâce à setTick
+      value={{ state, ready, update, setShifts, reset, replace, undo, redo, canUndo: past.current.length > 0, canRedo: future.current.length > 0 }}
+    >
+      {children}
+    </AppContext.Provider>
+  );
 }
 
 export function useApp() {

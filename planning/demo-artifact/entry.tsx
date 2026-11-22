@@ -2,7 +2,7 @@ import { createRoot } from "react-dom/client";
 import { useEffect } from "react";
 import { usePathname } from "./shims";
 import { AppProvider } from "@/lib/store";
-import { ToastProvider } from "@/components/ui";
+import { ConfirmProvider, ToastProvider } from "@/components/ui";
 import { AppShell } from "@/components/shell/AppShell";
 import Home from "@/app/page";
 import LoginPage from "@/app/connexion/page";
@@ -45,8 +45,10 @@ function Router() {
 createRoot(document.getElementById("root")!).render(
   <AppProvider>
     <ToastProvider>
+      <ConfirmProvider>
       <NavTracker />
       <Router />
+      </ConfirmProvider>
     </ToastProvider>
   </AppProvider>,
 );

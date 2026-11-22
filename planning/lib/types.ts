@@ -85,6 +85,8 @@ export type Shift = {
   end: string;
   postId: string;
   breakMinutes?: number;
+  /** Renfort ajouté pour atteindre les heures du contrat (au-delà des besoins). */
+  extra?: boolean;
 };
 
 /** Clé "jour|serviceId|postId" -> nombre de personnes nécessaires. */
