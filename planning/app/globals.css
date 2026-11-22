@@ -1,14 +1,47 @@
 @import "tailwindcss";
 
+/*
+ * Thème Quinzo. Toutes les couleurs passent par ces variables :
+ * pour changer l'identité, on ne modifie qu'ici.
+ * - brand : terracotta (boutons, logo, liens). Jamais pour une alerte.
+ * - slate : gris chauds, assombris pour que tout texte atteigne 4,5:1.
+ * - Alertes : rouge (erreur), ambre (avertissement), vert (OK) = couleurs Tailwind red/amber/emerald.
+ */
 @theme {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --color-brand-50: #eef4ff;
-  --color-brand-100: #dbe6fe;
-  --color-brand-200: #bfd3fe;
-  --color-brand-500: #4f6ef7;
-  --color-brand-600: #3b55e6;
-  --color-brand-700: #2f43c4;
-  --color-ink: #0f172a;
+
+  --color-brand-50: #fbede7;
+  --color-brand-100: #f5ddd3;
+  --color-brand-200: #ebbfae;
+  --color-brand-300: #dc9a82;
+  --color-brand-400: #c9694f;
+  --color-brand-500: #bd5338;
+  --color-brand-600: #b4442a;
+  --color-brand-700: #963722;
+  --color-brand-800: #82301d;
+  --color-brand-900: #6e2615;
+
+  --color-ink: #2f3e46;
+  --color-page: #fbf6f1;
+  --color-card: #ffffff;
+
+  --color-slate-50: #f7f3ef;
+  --color-slate-100: #efe9e3;
+  --color-slate-200: #e4ddd6;
+  --color-slate-300: #cfc7bf;
+  --color-slate-400: #6b7780;
+  --color-slate-500: #5b6770;
+  --color-slate-600: #46535b;
+  --color-slate-700: #3a4850;
+  --color-slate-800: #2f3e46;
+  --color-slate-900: #23303a;
+
+  --color-danger: #dc2626;
+
+  --color-whatsapp: #1a7f43;
+  --color-whatsapp-hover: #146636;
+  --color-whatsapp-chat: #efeae2;
+  --color-whatsapp-bubble: #d9fdd3;
 }
 
 html {
@@ -16,7 +49,7 @@ html {
 }
 
 body {
-  background: #f7f7f8;
+  background: var(--color-page);
   color: var(--color-ink);
   font-feature-settings: "cv11", "ss01";
 }
@@ -25,8 +58,8 @@ body {
 .hatch {
   background-image: repeating-linear-gradient(
     135deg,
-    rgb(241 245 249) 0 6px,
-    rgb(248 250 252) 6px 12px
+    var(--color-slate-100) 0 6px,
+    var(--color-slate-50) 6px 12px
   );
 }
 
@@ -73,7 +106,7 @@ body {
     margin: 10mm;
   }
   body {
-    background: white;
+    background: var(--color-card);
   }
   body * {
     visibility: hidden;

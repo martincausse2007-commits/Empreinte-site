@@ -40,7 +40,7 @@ export default function TemplatesPage() {
           </div>
         </Card>
         <Card className="flex items-start gap-4 p-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
             <Save size={18} />
           </div>
           <div className="flex-1">
@@ -69,7 +69,7 @@ export default function TemplatesPage() {
               </div>
               <button
                 aria-label="Supprimer le modèle"
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 sm:h-9 sm:w-9"
                 onClick={() => {
                   update((s) => ({ ...s, templates: s.templates.filter((x) => x.id !== t.id) }));
                   toast("Modèle supprimé");

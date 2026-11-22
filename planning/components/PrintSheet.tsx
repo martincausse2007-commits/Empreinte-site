@@ -46,7 +46,7 @@ export function PrintSheet({ state, week, shifts }: { state: AppState; week: str
                         </div>
                       ))
                     ) : (
-                      <span className="text-slate-400">Repos</span>
+                      <span className="text-slate-500">Repos</span>
                     )}
                   </td>
                 );

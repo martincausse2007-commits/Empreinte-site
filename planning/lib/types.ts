@@ -43,15 +43,9 @@ export type Post = {
   color: PostColor;
 };
 
-export type PostColor =
-  | "blue"
-  | "orange"
-  | "violet"
-  | "emerald"
-  | "pink"
-  | "amber"
-  | "cyan"
-  | "slate";
+// Couleurs des postes. Pas de rouge, orange, ambre ni vert :
+// ces teintes sont réservées aux alertes et au terracotta de la marque.
+export type PostColor = "blue" | "teal" | "violet" | "pink" | "indigo" | "cyan" | "fuchsia" | "sky" | "slate";
 
 export type Service = {
   id: string;

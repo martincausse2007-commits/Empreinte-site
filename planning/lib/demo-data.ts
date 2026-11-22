@@ -11,7 +11,7 @@ export const STATE_VERSION = 2;
 
 const RESTAURANT_POSTS: Post[] = [
   { id: "salle", name: "Salle", color: "blue" },
-  { id: "cuisine", name: "Cuisine", color: "orange" },
+  { id: "cuisine", name: "Cuisine", color: "teal" },
   { id: "bar", name: "Bar", color: "violet" },
 ];
 

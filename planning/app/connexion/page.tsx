@@ -36,7 +36,7 @@ export default function LoginPage() {
         <Button type="submit" variant="primary" size="lg" className="w-full">
           Se connecter
         </Button>
-        <p className="text-center text-xs text-slate-400">Maquette : n&apos;importe quel e-mail fonctionne.</p>
+        <p className="text-center text-xs text-slate-500">Maquette : n&apos;importe quel e-mail fonctionne.</p>
       </form>
     </AuthLayout>
   );

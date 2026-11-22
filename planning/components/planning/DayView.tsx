@@ -44,10 +44,10 @@ export function DayView({ state, week, shifts, alerts, errorShifts, day, onDay, 
               className={cx(
                 "relative flex min-w-[48px] flex-1 flex-col items-center rounded-xl border py-2 transition",
                 i === day ? "border-brand-600 bg-brand-600 text-white shadow-sm" : "border-slate-200 bg-white text-slate-700",
-                closed && i !== day && "text-slate-400",
+                closed && i !== day && "text-slate-500",
               )}
             >
-              <span className="text-[11px] font-medium opacity-80">{d}</span>
+              <span className="text-[11px] font-medium">{d}</span>
               <span className="text-base font-semibold tabular-nums">{dateOfDay(week, i).getDate()}</span>
               {n > 0 && <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />}
             </button>
@@ -64,7 +64,7 @@ export function DayView({ state, week, shifts, alerts, errorShifts, day, onDay, 
               <Card key={sv.id} className="px-4 py-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-semibold">{sv.name}</span>
-                  <span className="text-slate-400">Fermé</span>
+                  <span className="text-slate-500">Fermé</span>
                 </div>
               </Card>
             );
@@ -124,7 +124,7 @@ export function DayView({ state, week, shifts, alerts, errorShifts, day, onDay, 
                           <button
                             key={i}
                             onClick={() => onAddSlot(day, sv.id, p.id)}
-                            className="flex h-[34px] items-center gap-1.5 rounded-full border border-dashed border-amber-300 bg-amber-50 px-3 text-sm font-medium text-amber-800"
+                            className="flex h-11 items-center gap-1.5 rounded-full border border-dashed border-amber-300 bg-amber-50 px-3 text-sm font-medium text-amber-800"
                           >
                             <Plus size={14} /> À pourvoir
                           </button>
@@ -133,7 +133,7 @@ export function DayView({ state, week, shifts, alerts, errorShifts, day, onDay, 
                           <button
                             onClick={() => onAddSlot(day, sv.id, p.id)}
                             aria-label="Ajouter"
-                            className="flex h-[34px] w-[34px] items-center justify-center rounded-full border border-dashed border-slate-300 text-slate-400"
+                            className="flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-slate-300 text-slate-500"
                           >
                             <Plus size={15} />
                           </button>

@@ -12,7 +12,7 @@ export function HoursMeter({ hours, contract, compact }: { hours: number; contra
       </div>
       <span className={cx("shrink-0 text-xs tabular-nums", over ? "font-semibold text-red-600" : "text-slate-500")}>
         {formatHours(hours).replace(" ", "")}
-        <span className="text-slate-400">/{contract}h</span>
+        <span className="text-slate-500">/{contract}h</span>
       </span>
     </div>
   );

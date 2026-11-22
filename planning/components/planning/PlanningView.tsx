@@ -9,7 +9,9 @@ import { computeAlerts, serviceActive, svTime } from "@/lib/rules";
 import { generateWeek } from "@/lib/generate";
 import { applyTemplate, copyWeek } from "@/lib/templates";
 import { addWeeks, formatWeekRange, isoWeekNumber } from "@/lib/time";
-import { Button, Card, Modal, cx, useToast } from "../ui";
+import { Button, Card, Modal, buttonClass, cx, useToast } from "../ui";
+import { useRouter } from "next/navigation";
+import { useHistoryLayer } from "@/lib/history";
 import { WeekGrid } from "./WeekGrid";
 import { DayView } from "./DayView";
 import { AlertsPanel } from "./AlertsPanel";
@@ -29,6 +31,9 @@ export function PlanningView() {
   const [generating, setGenerating] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const router = useRouter();
+  // Le menu « … » se ferme aussi avec Échap ou le bouton retour du téléphone
+  useHistoryLayer(menuOpen, () => setMenuOpen(false));
   const [mobileView, setMobileView] = useState<"day" | "week">("day");
   const [day, setDay] = useState(1);
   const [seed, setSeed] = useState(0);
@@ -113,13 +118,13 @@ export function PlanningView() {
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex items-center rounded-xl border border-slate-200 bg-white shadow-xs">
-            <button onClick={() => goWeek(-1)} className="flex h-10 w-10 items-center justify-center text-slate-500 hover:text-slate-900" aria-label="Semaine précédente">
+            <button onClick={() => goWeek(-1)} className="flex h-11 w-11 items-center justify-center text-slate-600 hover:text-slate-900" aria-label="Semaine précédente">
               <ChevronLeft size={18} />
             </button>
             <div className="min-w-0 px-1 text-center">
               <div className="text-[15px] font-semibold whitespace-nowrap">{formatWeekRange(week)}</div>
             </div>
-            <button onClick={() => goWeek(1)} className="flex h-10 w-10 items-center justify-center text-slate-500 hover:text-slate-900" aria-label="Semaine suivante">
+            <button onClick={() => goWeek(1)} className="flex h-11 w-11 items-center justify-center text-slate-600 hover:text-slate-900" aria-label="Semaine suivante">
               <ChevronRight size={18} />
             </button>
           </div>
@@ -138,10 +143,8 @@ export function PlanningView() {
           <Button onClick={() => setTemplatesOpen(true)}>
             <LayoutTemplate size={16} /> Modèles
           </Button>
-          <Link href="/partage">
-            <Button>
-              <Share2 size={16} /> Partager
-            </Button>
+          <Link href="/partage" className={buttonClass()}>
+            <Share2 size={16} /> Partager
           </Link>
           </div>
           <div className="relative">
@@ -154,9 +157,7 @@ export function PlanningView() {
                 <div className="animate-pop absolute right-0 z-30 mt-2 w-60 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
                   <MenuItem icon={Copy} label="Copier la semaine précédente" onClick={copyPrevious} />
                   <MenuItem icon={LayoutTemplate} label="Appliquer un modèle" onClick={() => (setMenuOpen(false), setTemplatesOpen(true))} />
-                  <Link href="/partage">
-                    <MenuItem icon={Share2} label="Partager le planning" onClick={() => setMenuOpen(false)} />
-                  </Link>
+                  <MenuItem icon={Share2} label="Partager le planning" onClick={() => (setMenuOpen(false), router.push("/partage"))} />
                   <div className="my-1 h-px bg-slate-100" />
                   <MenuItem
                     icon={Trash2}
@@ -196,7 +197,7 @@ export function PlanningView() {
               <button
                 key={v}
                 onClick={() => setMobileView(v)}
-                className={cx("flex-1 rounded-lg py-1.5 text-sm font-medium", mobileView === v ? "bg-white shadow-sm" : "text-slate-600")}
+                className={cx("min-h-11 flex-1 rounded-lg text-sm font-medium", mobileView === v ? "bg-white shadow-sm" : "text-slate-600")}
               >
                 {v === "day" ? "Jour" : "Semaine"}
               </button>
@@ -226,10 +227,10 @@ export function PlanningView() {
               onAdd={(e, d) => newShift(e, d)}
               onMove={onMove}
             />
-            <p className="mt-3 hidden text-xs text-slate-400 md:block">
+            <p className="mt-3 hidden text-xs text-slate-500 md:block">
               Astuce : glissez un créneau pour le déplacer, maintenez <kbd className="rounded border border-slate-200 bg-white px-1">Alt</kbd> pour le dupliquer. Cliquez pour le modifier.
             </p>
-            <p className="mt-3 text-xs text-slate-400 md:hidden">Astuce : appui long sur un créneau pour le déplacer.</p>
+            <p className="mt-3 text-xs text-slate-500 md:hidden">Astuce : appui long sur un créneau pour le déplacer.</p>
           </div>
         </>
       )}
@@ -276,7 +277,7 @@ export function PlanningView() {
 
 function MenuItem({ icon: Icon, label, onClick, danger }: { icon: typeof Copy; label: string; onClick: () => void; danger?: boolean }) {
   return (
-    <button onClick={onClick} className={cx("flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50", danger ? "text-red-600" : "text-slate-700")}>
+    <button onClick={onClick} className={cx("flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50 sm:min-h-9", danger ? "text-red-600" : "text-slate-700")}>
       <Icon size={16} />
       {label}
     </button>

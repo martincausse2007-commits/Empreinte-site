@@ -63,7 +63,7 @@ export function WeekGrid({ state, week, shifts, errorShifts, onEdit, onAdd, onMo
         <div className="min-w-[934px] sm:min-w-[1036px]">
           {/* En-tête des jours */}
           <div className={cx(cols, "sticky top-0 z-10 border-b border-slate-200/80 bg-white")}>
-            <div className="sticky left-0 z-10 flex items-end bg-white px-3 pb-2 text-xs font-medium text-slate-400 sm:px-4">Équipe</div>
+            <div className="sticky left-0 z-10 flex items-end bg-white px-3 pb-2 text-xs font-medium text-slate-500 sm:px-4">Équipe</div>
             {DAYS_SHORT.map((d, day) => {
               const dayCov = cov.filter((c) => c.day === day);
               const needed = dayCov.reduce((a, c) => a + c.needed, 0);
@@ -75,7 +75,7 @@ export function WeekGrid({ state, week, shifts, errorShifts, onEdit, onAdd, onMo
                   </div>
                   <div className="mt-1 text-[11px]">
                     {needed === 0 ? (
-                      <span className="text-slate-400">Fermé</span>
+                      <span className="text-slate-500">Fermé</span>
                     ) : missing > 0 ? (
                       <span className="rounded-full bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">{missing} à pourvoir</span>
                     ) : (
@@ -253,7 +253,7 @@ function Cell({
           ))}
       </div>
       {shifts.length === 0 && (allDay || partial.length > 0) && (
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[11px] text-slate-400">
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[11px] text-slate-500">
           {allDay ? "Indisponible" : `Indispo ${partial.map((p) => p.name.toLowerCase()).join(", ")}`}
         </div>
       )}
@@ -261,7 +261,7 @@ function Cell({
         <button
           onClick={() => onAdd(e.id, day)}
           aria-label="Ajouter un créneau"
-          className="absolute inset-1.5 flex items-center justify-center rounded-md text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-slate-700 focus:opacity-100 group-hover/cell:opacity-100"
+          className="absolute inset-1.5 flex items-center justify-center rounded-md text-slate-500 opacity-0 transition hover:bg-slate-100 hover:text-slate-700 focus:opacity-100 group-hover/cell:opacity-100"
         >
           <Plus size={15} />
         </button>

@@ -82,7 +82,7 @@ export function ShiftEditor({
                 type="button"
                 onClick={() => set({ day: i })}
                 className={cx(
-                  "h-10 rounded-lg border text-[13px] font-medium",
+                  "h-11 rounded-lg border text-[13px] font-medium",
                   draft.day === i ? "border-brand-600 bg-brand-600 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50",
                 )}
               >
@@ -115,7 +115,7 @@ export function ShiftEditor({
           </div>
           <div className="flex items-center gap-2">
             <input type="time" className={inputClass} value={draft.start} onChange={(e) => set({ start: e.target.value })} />
-            <span className="text-slate-400">→</span>
+            <span className="text-slate-500">→</span>
             <input type="time" className={inputClass} value={draft.end} onChange={(e) => set({ end: e.target.value })} />
           </div>
           <div className="mt-2 flex items-center justify-between gap-3">
@@ -151,7 +151,7 @@ export function ShiftEditor({
               >
                 <span className={cx("h-2 w-2 rounded-full", POST_COLORS[p.color].dot)} />
                 {p.name}
-                {employee && !employee.postIds.includes(p.id) && <span className="text-[11px] opacity-60">(hors poste)</span>}
+                {employee && !employee.postIds.includes(p.id) && <span className="text-[11px]">(hors poste)</span>}
               </button>
             ))}
           </div>

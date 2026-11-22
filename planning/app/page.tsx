@@ -56,7 +56,7 @@ export default function Home() {
         ))}
       </section>
 
-      <footer className="border-t border-slate-100 py-6 text-center text-xs text-slate-400">
+      <footer className="border-t border-slate-100 py-6 text-center text-xs text-slate-500">
         <CalendarCheck2 size={14} className="mr-1 inline" /> Quinzo — maquette de démonstration
       </footer>
     </div>

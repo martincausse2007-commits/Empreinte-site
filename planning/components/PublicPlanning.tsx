@@ -34,11 +34,11 @@ export function PublicPlanning({ token }: { token: string }) {
 
       <h1 className="text-xl font-semibold">{state.establishment.name}</h1>
       <div className="mt-3 mb-4 flex items-center justify-between rounded-xl border border-slate-200 bg-white">
-        <button className="p-3 text-slate-500" onClick={() => setWeek(addWeeks(w, -1))} aria-label="Semaine précédente">
+        <button className="flex h-12 w-12 items-center justify-center text-slate-600" onClick={() => setWeek(addWeeks(w, -1))} aria-label="Semaine précédente">
           <ChevronLeft size={18} />
         </button>
         <span className="text-sm font-semibold">{formatWeekRange(w)}</span>
-        <button className="p-3 text-slate-500" onClick={() => setWeek(addWeeks(w, 1))} aria-label="Semaine suivante">
+        <button className="flex h-12 w-12 items-center justify-center text-slate-600" onClick={() => setWeek(addWeeks(w, 1))} aria-label="Semaine suivante">
           <ChevronRight size={18} />
         </button>
       </div>
@@ -54,9 +54,9 @@ export function PublicPlanning({ token }: { token: string }) {
 
       {me && (
         <div className="mb-5 rounded-2xl bg-brand-600 p-4 text-white">
-          <div className="text-sm opacity-80">Mes heures cette semaine</div>
+          <div className="text-sm">Mes heures cette semaine</div>
           <div className="text-2xl font-semibold">
-            {formatHours(hours[me] ?? 0)} <span className="text-base font-normal opacity-70">/ {emp(me)?.contractHours} h</span>
+            {formatHours(hours[me] ?? 0)} <span className="text-base font-normal">/ {emp(me)?.contractHours} h</span>
           </div>
         </div>
       )}
@@ -76,7 +76,7 @@ export function PublicPlanning({ token }: { token: string }) {
                   <span className="text-xs text-slate-500">{formatDayDate(w, day)}</span>
                 </div>
                 {list.length === 0 ? (
-                  <div className="px-4 py-3 text-sm text-slate-400">{me ? "Repos" : "Fermé"}</div>
+                  <div className="px-4 py-3 text-sm text-slate-500">{me ? "Repos" : "Fermé"}</div>
                 ) : (
                   <ul className="divide-y divide-slate-100">
                     {list.map((s) => {

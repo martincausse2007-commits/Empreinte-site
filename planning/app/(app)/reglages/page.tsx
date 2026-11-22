@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { ClipboardList, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { ClipboardList, MoreHorizontal, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { uid, useApp } from "@/lib/store";
 import { activity } from "@/lib/presets";
 import { rulesOf } from "@/lib/rules";
 import { COLOR_ORDER, POST_COLORS } from "@/lib/colors";
-import type { Rules } from "@/lib/types";
-import { Button, Card, Field, PageHeader, Stepper, TimeSelect, cx, inputClass, useToast } from "@/components/ui";
+import type { Rules, Service } from "@/lib/types";
+
+const BREAKS = [0, 20, 30, 45, 60, 90];
+import { BackButton, Button, Card, Field, Modal, PageHeader, Stepper, TimeSelect, buttonClass, cx, inputClass, useToast } from "@/components/ui";
 import { Question, RulesFields, Segmented } from "@/components/setup/SetupWizard";
 
 export default function SettingsPage() {
@@ -16,11 +19,16 @@ export default function SettingsPage() {
   const toast = useToast();
   const router = useRouter();
   const rules = rulesOf(state);
+  const [options, setOptions] = useState<string | null>(null);
+  const optionsSv = state.services.find((x) => x.id === options);
   const setRules = (r: Partial<Rules>) => update((s) => ({ ...s, rules: { ...rulesOf(s), ...r } }));
 
   return (
     <div className="max-w-3xl">
-      <PageHeader title="Réglages" />
+      <BackButton fallback="/planning" />
+      <div className="mt-2">
+        <PageHeader title="Réglages" />
+      </div>
 
       <Card className="mb-4 p-5">
         <h2 className="mb-4 font-semibold">Établissement</h2>
@@ -38,10 +46,8 @@ export default function SettingsPage() {
               <div className="text-sm font-medium">{activity(state.establishment.type).label}</div>
               <div className="text-xs text-slate-500">Horaires, organisation, postes et équipe définis par le questionnaire</div>
             </div>
-            <Link href="/configuration">
-              <Button size="sm">
-                <ClipboardList size={14} /> Refaire le questionnaire
-              </Button>
+            <Link href="/configuration" className={buttonClass("secondary", "sm")}>
+              <ClipboardList size={14} /> Refaire le questionnaire
             </Link>
           </div>
         </div>
@@ -94,7 +100,7 @@ export default function SettingsPage() {
                 <span className={cx("h-5 w-5 rounded-full sm:hidden", POST_COLORS[p.color].dot)} />
               </div>
               <input className={inputClass} value={p.name} onChange={(e) => update((s) => ({ ...s, posts: s.posts.map((x) => (x.id === p.id ? { ...x, name: e.target.value } : x)) }))} />
-              <button aria-label="Supprimer le poste" className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" onClick={() => update((s) => ({ ...s, posts: s.posts.filter((x) => x.id !== p.id) }))}>
+              <button aria-label="Supprimer le poste" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600" onClick={() => update((s) => ({ ...s, posts: s.posts.filter((x) => x.id !== p.id) }))}>
                 <Trash2 size={16} />
               </button>
             </div>
@@ -111,31 +117,77 @@ export default function SettingsPage() {
         </div>
         <p className="mb-4 text-sm text-slate-500">Les grandes plages de travail de la journée, utilisées pour les besoins et la génération.</p>
         <div className="space-y-2">
-          {state.services.map((sv) => (
-            <div key={sv.id} className="flex flex-wrap items-center gap-2">
-              <input className={cx(inputClass, "min-w-0 flex-1 basis-32")} value={sv.name} onChange={(e) => update((s) => ({ ...s, services: s.services.map((x) => (x.id === sv.id ? { ...x, name: e.target.value } : x)) }))} />
-              <TimeSelect value={sv.start} onChange={(v) => update((s) => ({ ...s, services: s.services.map((x) => (x.id === sv.id ? { ...x, start: v } : x)) }))} />
-              <span className="text-slate-400">–</span>
-              <TimeSelect value={sv.end} onChange={(v) => update((s) => ({ ...s, services: s.services.map((x) => (x.id === sv.id ? { ...x, end: v } : x)) }))} />
+          {state.services.map((sv) => {
+            const setSv = (p: Partial<Service>) => update((s) => ({ ...s, services: s.services.map((x) => (x.id === sv.id ? { ...x, ...p } : x)) }));
+            return (
+              // Une seule ligne, même sur téléphone : nom, début, fin, puis options
+              <div key={sv.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto_auto] sm:gap-2">
+                <input aria-label="Nom du créneau" className={cx(inputClass, "min-w-0")} value={sv.name} onChange={(e) => setSv({ name: e.target.value })} />
+                <TimeSelect className="w-[78px]" value={sv.start} onChange={(v) => setSv({ start: v })} />
+                <span className="hidden text-slate-500 sm:inline">–</span>
+                <TimeSelect className="w-[78px]" value={sv.end} onChange={(v) => setSv({ end: v })} />
+                <select
+                  aria-label="Pause"
+                  className="hidden h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm sm:block"
+                  value={sv.breakMinutes ?? 0}
+                  onChange={(e) => setSv({ breakMinutes: Number(e.target.value) || undefined })}
+                >
+                  {BREAKS.map((m) => (
+                    <option key={m} value={m}>
+                      {m ? `Pause ${m} min` : "Sans pause"}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  aria-label={`Options du créneau ${sv.name}`}
+                  className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 sm:hidden"
+                  onClick={() => setOptions(sv.id)}
+                >
+                  <MoreHorizontal size={18} />
+                </button>
+                <button
+                  aria-label="Supprimer le créneau"
+                  className="hidden h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 sm:flex"
+                  onClick={() => update((s) => ({ ...s, services: s.services.filter((x) => x.id !== sv.id) }))}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {optionsSv && (
+        <Modal open onClose={() => setOptions(null)} title={`Créneau « ${optionsSv.name} »`}>
+          <div className="space-y-4">
+            <Field label="Pause non payée">
               <select
-                aria-label="Pause"
-                className="h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm"
-                value={sv.breakMinutes ?? 0}
-                onChange={(e) => update((s) => ({ ...s, services: s.services.map((x) => (x.id === sv.id ? { ...x, breakMinutes: Number(e.target.value) || undefined } : x)) }))}
+                className={inputClass}
+                value={optionsSv.breakMinutes ?? 0}
+                onChange={(e) => update((s) => ({ ...s, services: s.services.map((x) => (x.id === optionsSv.id ? { ...x, breakMinutes: Number(e.target.value) || undefined } : x)) }))}
               >
-                {[0, 20, 30, 45, 60, 90].map((m) => (
+                {BREAKS.map((m) => (
                   <option key={m} value={m}>
-                    {m ? `Pause ${m} min` : "Sans pause"}
+                    {m ? `${m} min` : "Sans pause"}
                   </option>
                 ))}
               </select>
-              <button aria-label="Supprimer le créneau" className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" onClick={() => update((s) => ({ ...s, services: s.services.filter((x) => x.id !== sv.id) }))}>
-                <Trash2 size={16} />
-              </button>
-            </div>
-          ))}
-        </div>
-      </Card>
+            </Field>
+            <Button
+              variant="danger"
+              className="w-full"
+              onClick={() => {
+                update((s) => ({ ...s, services: s.services.filter((x) => x.id !== optionsSv.id) }));
+                setOptions(null);
+                toast("Créneau supprimé");
+              }}
+            >
+              <Trash2 size={16} /> Supprimer ce créneau
+            </Button>
+          </div>
+        </Modal>
+      )}
 
       <Card className="p-5">
         <h2 className="mb-1 font-semibold">Démo</h2>

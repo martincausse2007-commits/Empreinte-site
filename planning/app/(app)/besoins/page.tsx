@@ -103,7 +103,7 @@ export default function NeedsPage() {
                     {serviceActive(sv, d) ? (
                       <Stepper value={getNeed(state.needs, d, sv.id, p.id)} onChange={(v) => setNeed(d, p.id, v)} max={20} />
                     ) : (
-                      <span className="text-xs text-slate-300">—</span>
+                      <span className="text-xs text-slate-500">—</span>
                     )}
                   </td>
                 ))}
@@ -115,7 +115,7 @@ export default function NeedsPage() {
                 const t = state.posts.reduce((a, p) => a + getNeed(state.needs, d, sv.id, p.id), 0);
                 return (
                   <td key={d} className="py-2.5 text-center font-semibold">
-                    {t || <span className="font-normal text-slate-400">Fermé</span>}
+                    {t || <span className="font-normal text-slate-500">Fermé</span>}
                   </td>
                 );
               })}

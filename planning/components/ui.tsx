@@ -1,8 +1,9 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
-import { CheckCircle2, Minus, Plus, X } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Minus, Plus, X } from "lucide-react";
 import { avatarColor } from "@/lib/colors";
+import { useBack, useHistoryLayer } from "@/lib/history";
 
 import { cx } from "@/lib/cx";
 export { cx };
@@ -13,29 +14,32 @@ const VARIANTS: Record<Variant, string> = {
   secondary: "bg-white text-slate-800 border border-slate-200 hover:bg-slate-50 shadow-xs",
   ghost: "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
   danger: "bg-white text-red-600 border border-red-200 hover:bg-red-50",
-  whatsapp: "bg-[#1fa855] text-white hover:bg-[#178a45]",
+  whatsapp: "bg-whatsapp text-white hover:bg-whatsapp-hover",
 };
+
+type Size = "sm" | "md" | "lg" | "icon";
+
+/** Classes d'un bouton, réutilisables sur un lien (<Link className={buttonClass(...)}>). */
+export function buttonClass(variant: Variant = "secondary", size: Size = "md", className?: string) {
+  return cx(
+        "inline-flex items-center justify-center gap-2 rounded-lg [&_svg]:shrink-0 font-medium transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap",
+        // Hauteur minimale de 44 px au doigt (mobile), plus compacte à la souris
+        size === "sm" && "h-11 px-3 text-[13px] sm:h-8",
+        size === "md" && "h-11 px-4 text-sm sm:h-10",
+        size === "lg" && "h-12 px-5 text-[15px]",
+        size === "icon" && "h-11 w-11 shrink-0 sm:h-10 sm:w-10",
+        VARIANTS[variant],
+        className,
+  );
+}
 
 export function Button({
   variant = "secondary",
   size = "md",
   className,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: "sm" | "md" | "lg" | "icon" }) {
-  return (
-    <button
-      {...props}
-      className={cx(
-        "inline-flex items-center justify-center gap-2 rounded-lg [&_svg]:shrink-0 font-medium transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap",
-        size === "sm" && "h-8 px-3 text-[13px]",
-        size === "md" && "h-10 px-4 text-sm",
-        size === "lg" && "h-12 px-5 text-[15px]",
-        size === "icon" && "h-10 w-10 shrink-0",
-        VARIANTS[variant],
-        className,
-      )}
-    />
-  );
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size }) {
+  return <button {...props} className={buttonClass(variant, size, className)} />;
 }
 
 export function Avatar({ id, name, size = 32 }: { id: string; name: string; size?: number }) {
@@ -65,17 +69,17 @@ export function Stepper({ value, onChange, min = 0, max = 99 }: { value: number;
       <button
         type="button"
         aria-label="Moins"
-        className="flex h-8 w-8 items-center justify-center text-slate-500 hover:text-slate-900 disabled:opacity-30"
+        className="flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-900 disabled:opacity-30 sm:h-8 sm:w-8"
         disabled={value <= min}
         onClick={() => onChange(Math.max(min, value - 1))}
       >
         <Minus size={14} />
       </button>
-      <span className={cx("w-7 text-center text-sm font-semibold tabular-nums", value === 0 && "text-slate-300")}>{value}</span>
+      <span className={cx("w-7 text-center text-sm font-semibold tabular-nums", value === 0 && "text-slate-500")}>{value}</span>
       <button
         type="button"
         aria-label="Plus"
-        className="flex h-8 w-8 items-center justify-center text-slate-500 hover:text-slate-900 disabled:opacity-30"
+        className="flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-900 disabled:opacity-30 sm:h-8 sm:w-8"
         disabled={value >= max}
         onClick={() => onChange(Math.min(max, value + 1))}
       >
@@ -101,16 +105,15 @@ export function Modal({
   footer?: ReactNode;
   wide?: boolean;
 }) {
+  // Bouton retour du téléphone et touche Échap ferment la fenêtre
+  useHistoryLayer(open, onClose);
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
     return () => {
-      window.removeEventListener("keydown", onKey);
       document.body.style.overflow = "";
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   return (
@@ -127,7 +130,7 @@ export function Modal({
         <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-slate-200 sm:hidden" />
         <div className="flex items-center justify-between px-5 pt-3 pb-2 sm:pt-5">
           <h2 className="text-[17px] font-semibold">{title}</h2>
-          <button onClick={onClose} aria-label="Fermer" className="-mr-2 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+          <button onClick={onClose} aria-label="Fermer" className="-mr-2 flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700">
             <X size={18} />
           </button>
         </div>
@@ -151,7 +154,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 }
 
 export const inputClass =
-  "h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-[15px] outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 sm:h-10 sm:text-sm";
+  "h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-[15px] outline-none transition placeholder:text-slate-500 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 sm:h-10 sm:text-sm";
 
 // ---- Notifications (toasts) -------------------------------------------------
 
@@ -200,7 +203,7 @@ const TIME_OPTIONS = Array.from({ length: 96 }, (_, i) => `${String(Math.floor(i
 export function TimeSelect({ value, onChange, className, id }: { value: string; onChange: (v: string) => void; className?: string; id?: string }) {
   const opts = TIME_OPTIONS.includes(value) ? TIME_OPTIONS : [...TIME_OPTIONS, value].sort();
   return (
-    <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className={cx("h-10 rounded-lg border border-slate-200 bg-white px-2 text-sm tabular-nums outline-none focus:border-brand-500", className)}>
+    <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className={cx("h-11 rounded-lg border border-slate-200 bg-white px-2 text-sm tabular-nums outline-none focus:border-brand-500 sm:h-10", className)}>
       {opts.map((t) => (
         <option key={t} value={t}>
           {t.endsWith(":00") ? `${Number(t.slice(0, 2))}h` : `${Number(t.slice(0, 2))}h${t.slice(3)}`}
@@ -218,9 +221,26 @@ export function Toggle({ checked, onChange, label }: { checked: boolean; onChang
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className={cx("relative h-6 w-11 shrink-0 rounded-full transition", checked ? "bg-brand-600" : "bg-slate-300")}
+      className="flex h-11 w-12 shrink-0 items-center justify-center"
     >
-      <span className={cx("absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all", checked ? "left-[22px]" : "left-0.5")} />
+      <span className={cx("relative h-6 w-11 rounded-full transition", checked ? "bg-brand-600" : "bg-slate-400")}>
+        <span className={cx("absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all", checked ? "left-[22px]" : "left-0.5")} />
+      </span>
+    </button>
+  );
+}
+
+/** Flèche « ← Retour » en haut des écrans secondaires. */
+export function BackButton({ fallback, label = "Retour", onClick, className }: { fallback: string; label?: string; onClick?: () => void; className?: string }) {
+  const back = useBack(fallback);
+  return (
+    <button
+      type="button"
+      onClick={onClick ?? back}
+      className={cx("-ml-2 inline-flex h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-ink", className)}
+    >
+      <ArrowLeft size={18} />
+      {label}
     </button>
   );
 }

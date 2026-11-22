@@ -65,7 +65,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* En-tête (mobile) */}
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur md:hidden">
         <Logo />
-        <Link href="/reglages" aria-label="Réglages" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">
+        <Link href="/reglages" aria-label="Réglages" className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100">
           <Settings size={20} />
         </Link>
       </header>

@@ -39,7 +39,7 @@ export function ShiftChip({
         </span>
       </div>
       {showPost && post && (
-        <div className="mt-0.5 flex items-center gap-1 text-[11px] opacity-75">
+        <div className="mt-0.5 flex items-center gap-1 text-[11px]">
           <span className={cx("h-1.5 w-1.5 rounded-full", c.dot)} />
           {post.name}
         </div>

@@ -3,8 +3,9 @@
 // Questionnaire de configuration (5 à 10 minutes) : le gérant décrit comment
 // fonctionne vraiment son établissement, et le planning s'y adapte.
 
-import { useMemo, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useBack } from "@/lib/history";
 import {
   ArrowLeft,
   ArrowRight,
@@ -23,8 +24,7 @@ import {
   Wand2,
   X,
 } from "lucide-react";
-import { Logo } from "../Logo";
-import { Button, Card, Stepper, TimeSelect, Toggle, cx, inputClass, useToast } from "../ui";
+import { BackButton, Button, Card, Stepper, TimeSelect, Toggle, cx, inputClass, useToast } from "../ui";
 import { useApp } from "@/lib/store";
 import { ACTIVITIES, ORGANISATIONS, activity } from "@/lib/presets";
 import { activePosts, draftFor, exampleTeam, neededHours, rebuildServices, defaultNeeds, sid, stateFromDraft, type SetupDraft } from "@/lib/setup";
@@ -48,12 +48,46 @@ const ICONS: Record<ActivityId, typeof Store> = {
 
 const STEPS = ["Activité", "Horaires", "Organisation", "Postes", "Besoins", "Règles", "Équipe", "Récapitulatif"];
 
+const DRAFT_KEY = "quinzo-setup-draft";
+
+/** Le questionnaire lit l'étape dans l'adresse (?etape=3) : le bouton retour du téléphone revient à l'étape précédente. */
 export function SetupWizard() {
+  return (
+    <Suspense fallback={<div className="min-h-dvh bg-white" />}>
+      <Wizard />
+    </Suspense>
+  );
+}
+
+function Wizard() {
   const router = useRouter();
+  const params = useSearchParams();
   const { replace } = useApp();
   const toast = useToast();
-  const [step, setStep] = useState(0);
-  const [d, setD] = useState<SetupDraft>(() => draftFor("restaurant"));
+  const quit = useBack("/");
+  const step = Math.min(STEPS.length - 1, Math.max(0, Number(params.get("etape") ?? "1") - 1 || 0));
+  const pushed = useRef(0);
+  // Brouillon gardé pendant la session : on peut quitter, revenir ou recharger sans tout perdre.
+  const [d, setD] = useState<SetupDraft>(() => {
+    try {
+      const saved = sessionStorage.getItem(DRAFT_KEY);
+      if (saved) return JSON.parse(saved) as SetupDraft;
+    } catch {
+      /* ignore */
+    }
+    return draftFor("restaurant");
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+    } catch {
+      /* ignore */
+    }
+  }, [d]);
+  const goTo = (n: number) => {
+    pushed.current++;
+    router.push(`/configuration?etape=${n + 1}`);
+  };
 
   /** Modifie le brouillon ; si les horaires ou l'organisation changent, on recalcule les créneaux. */
   function patch(p: Partial<SetupDraft>, rebuild = false) {
@@ -87,18 +121,29 @@ export function SetupWizard() {
       toast(res.unfilled ? `Première semaine générée (${res.unfilled} place${res.unfilled > 1 ? "s" : ""} à pourvoir)` : "Votre première semaine est prête");
     } else toast("Établissement créé. Ajoutez votre équipe pour générer le planning.");
     replace(state);
+    try {
+      sessionStorage.removeItem(DRAFT_KEY);
+    } catch {
+      /* ignore */
+    }
     router.push(state.employees.length ? "/planning" : "/equipe");
   }
 
-  const next = () => (step < STEPS.length - 1 ? (setStep(step + 1), window.scrollTo(0, 0)) : finish());
-  const back = () => (step > 0 ? (setStep(step - 1), window.scrollTo(0, 0)) : router.push("/"));
+  const next = () => (step < STEPS.length - 1 ? goTo(step + 1) : finish());
+  const back = () => {
+    if (step === 0) return quit();
+    if (pushed.current > 0) {
+      pushed.current--;
+      router.back();
+    } else router.replace(`/configuration?etape=${step}`);
+  };
 
   return (
     <div className="min-h-dvh bg-white pb-28">
       <header className="sticky top-0 z-20 border-b border-slate-100 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-4">
-          <Logo />
-          <span className="text-xs font-medium text-slate-500">
+          <BackButton fallback="/" label={step === 0 ? "Quitter" : "Retour"} onClick={back} />
+          <span className="text-xs font-medium text-slate-600">
             Étape {step + 1} sur {STEPS.length} · {STEPS[step]}
           </span>
         </div>
@@ -115,7 +160,7 @@ export function SetupWizard() {
         {step === 4 && <StepNeeds d={d} patch={patch} />}
         {step === 5 && <StepRules d={d} setRules={setRules} />}
         {step === 6 && <StepTeam d={d} patch={patch} />}
-        {step === 7 && <StepSummary d={d} goTo={setStep} />}
+        {step === 7 && <StepSummary d={d} goTo={goTo} />}
       </main>
 
       <footer className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-100 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
@@ -267,18 +312,18 @@ function StepOpening({ d, patch }: { d: SetupDraft; patch: (p: Partial<SetupDraf
             <div key={day} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center">
               <div className="flex w-36 items-center gap-3">
                 <Toggle checked={open} label={`${name} ouvert`} onChange={(v) => setDay(day, v ? (firstOpen.length ? firstOpen.map((r) => ({ ...r })) : [{ start: "09:00", end: "18:00" }]) : [])} />
-                <span className={cx("text-sm font-medium", !open && "text-slate-400")}>{name}</span>
+                <span className={cx("text-sm font-medium", !open && "text-slate-500")}>{name}</span>
               </div>
               {open ? (
                 <div className="flex flex-1 flex-wrap items-center gap-2">
                   {ranges.map((r, i) => (
                     <div key={i} className="flex items-center gap-1.5">
-                      {i > 0 && <span className="px-1 text-xs text-slate-400">puis</span>}
+                      {i > 0 && <span className="px-1 text-xs text-slate-500">puis</span>}
                       <TimeSelect value={r.start} onChange={(v) => setDay(day, ranges.map((x, j) => (j === i ? { ...x, start: v } : x)))} />
-                      <span className="text-slate-400">–</span>
+                      <span className="text-slate-500">–</span>
                       <TimeSelect value={r.end} onChange={(v) => setDay(day, ranges.map((x, j) => (j === i ? { ...x, end: v } : x)))} />
                       {ranges.length > 1 && (
-                        <button type="button" aria-label="Retirer la plage" onClick={() => setDay(day, ranges.filter((_, j) => j !== i))} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
+                        <button type="button" aria-label="Retirer la plage" onClick={() => setDay(day, ranges.filter((_, j) => j !== i))} className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100">
                           <X size={15} />
                         </button>
                       )}
@@ -288,14 +333,14 @@ function StepOpening({ d, patch }: { d: SetupDraft; patch: (p: Partial<SetupDraf
                     <button
                       type="button"
                       onClick={() => setDay(day, [...ranges, { start: "19:00", end: "22:30" }])}
-                      className="rounded-lg px-2 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-50"
+                      className="min-h-11 rounded-lg px-2 text-xs font-medium text-brand-700 hover:bg-brand-50"
                     >
                       + 2e plage horaire
                     </button>
                   )}
                 </div>
               ) : (
-                <span className="text-sm text-slate-400">Fermé</span>
+                <span className="text-sm text-slate-500">Fermé</span>
               )}
             </div>
           );
@@ -304,11 +349,11 @@ function StepOpening({ d, patch }: { d: SetupDraft; patch: (p: Partial<SetupDraf
       <button
         type="button"
         onClick={() => patch({ opening: d.opening.map((x) => (x.length ? firstOpen.map((r) => ({ ...r })) : [])) }, true)}
-        className="mt-2 text-sm font-medium text-brand-600"
+        className="mt-2 min-h-11 text-sm font-medium text-brand-700"
       >
         Mettre les mêmes horaires sur tous les jours ouverts
       </button>
-      <p className="mt-1 text-xs text-slate-400">Astuce : une fin égale au début signifie « ouvert 24 h/24 ».</p>
+      <p className="mt-1 text-xs text-slate-500">Astuce : une fin égale au début signifie « ouvert 24 h/24 ».</p>
 
       <div className="mt-6 divide-y divide-slate-100">
         <Question title="Mise en place avant l'ouverture" hint="Votre équipe arrive combien de temps avant les clients ?">
@@ -373,7 +418,7 @@ function StepOrganisation({
               <div className="flex flex-wrap items-center gap-2">
                 <input className={cx(inputClass, "h-10 min-w-0 flex-1 basis-32")} value={sv.name} onChange={(e) => setService(sv.id, { name: e.target.value })} aria-label="Nom du créneau" />
                 <TimeSelect value={sv.start} onChange={(v) => setService(sv.id, { start: v })} />
-                <span className="text-slate-400">–</span>
+                <span className="text-slate-500">–</span>
                 <TimeSelect value={sv.end} onChange={(v) => setService(sv.id, { end: v })} />
                 <select
                   aria-label="Pause"
@@ -388,7 +433,7 @@ function StepOrganisation({
                   ))}
                 </select>
                 {d.organisation === "libre" && (
-                  <button type="button" aria-label="Supprimer" onClick={() => patch({ services: d.services.filter((s) => s.id !== sv.id) })} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600">
+                  <button type="button" aria-label="Supprimer" onClick={() => patch({ services: d.services.filter((s) => s.id !== sv.id) })} className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600">
                     <Trash2 size={16} />
                   </button>
                 )}
@@ -450,7 +495,7 @@ function StepPosts({ d, patch }: { d: SetupDraft; patch: (p: Partial<SetupDraft>
             <Toggle checked={p.selected} label={p.name} onChange={(v) => patch({ posts: d.posts.map((x) => (x.id === p.id ? { ...x, selected: v } : x)) })} />
             <span className={cx("h-2.5 w-2.5 shrink-0 rounded-full", POST_COLORS[p.color].dot)} />
             <input
-              className={cx("h-9 min-w-0 flex-1 rounded-lg border border-transparent px-2 text-sm hover:border-slate-200 focus:border-brand-500 focus:outline-none", !p.selected && "text-slate-400")}
+              className={cx("h-9 min-w-0 flex-1 rounded-lg border border-transparent px-2 text-sm hover:border-slate-200 focus:border-brand-500 focus:outline-none", !p.selected && "text-slate-500")}
               value={p.name}
               onChange={(e) => patch({ posts: d.posts.map((x) => (x.id === p.id ? { ...x, name: e.target.value } : x)) })}
               aria-label="Nom du poste"
@@ -593,7 +638,7 @@ function StepTeam({ d, patch }: { d: SetupDraft; patch: (p: Partial<SetupDraft>)
             <Button className="mt-3" variant="primary" onClick={() => patch({ employees: exampleTeam(d) })}>
               <Sparkles size={16} /> Remplir avec une équipe d&apos;exemple
             </Button>
-            <p className="mt-2 text-xs text-slate-400">Pratique pour essayer : l&apos;équipe est calculée d&apos;après vos besoins.</p>
+            <p className="mt-2 text-xs text-slate-500">Pratique pour essayer : l&apos;équipe est calculée d&apos;après vos besoins.</p>
           </div>
         )}
         {d.employees.map((e) => (
@@ -610,7 +655,7 @@ function StepTeam({ d, patch }: { d: SetupDraft; patch: (p: Partial<SetupDraft>)
             <span className="flex items-center gap-1.5">
               <Stepper value={e.contractHours} onChange={(v) => setEmp(e.id, { contractHours: v })} min={1} max={48} />
               <span className="text-xs text-slate-500">h/sem.</span>
-              <button type="button" aria-label="Retirer" onClick={() => patch({ employees: d.employees.filter((x) => x.id !== e.id) })} className="ml-auto rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600">
+              <button type="button" aria-label="Retirer" onClick={() => patch({ employees: d.employees.filter((x) => x.id !== e.id) })} className="ml-auto flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600">
                 <Trash2 size={16} />
               </button>
             </span>
@@ -676,7 +721,7 @@ function StepSummary({ d, goTo }: { d: SetupDraft; goTo: (s: number) => void }) 
       {d.employees.length === 0 && (
         <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">Sans équipe, le planning ne peut pas être généré. Vous pourrez ajouter vos employés juste après.</p>
       )}
-      <p className="mt-4 text-xs text-slate-400">Tous ces réglages restent modifiables dans « Réglages ».</p>
+      <p className="mt-4 text-xs text-slate-500">Tous ces réglages restent modifiables dans « Réglages ».</p>
     </>
   );
 }

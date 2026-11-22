@@ -1,10 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { AppProvider } from "@/lib/store";
 import { ToastProvider } from "@/components/ui";
+import { NavTracker } from "@/components/NavTracker";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+// Police Inter hébergée dans le projet (aucun appel à Google Fonts).
+const inter = localFont({
+  src: "./fonts/InterVariable-latin.woff2",
+  weight: "100 900",
+  variable: "--font-inter",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Quinzo — Le planning d'équipe en 15 minutes",
@@ -14,7 +21,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#f7f7f8",
+  themeColor: "#fbf6f1", // = couleur --color-page du thème (les métadonnées n'acceptent pas de variable CSS)
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -22,7 +29,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="fr" className={inter.variable}>
       <body className="min-h-dvh font-sans antialiased">
         <AppProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider>
+            <NavTracker />
+            {children}
+          </ToastProvider>
         </AppProvider>
       </body>
     </html>

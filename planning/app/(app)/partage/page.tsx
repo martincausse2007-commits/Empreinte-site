@@ -6,7 +6,7 @@ import { Check, Copy, ExternalLink, FileDown, Link2, MessageCircle } from "lucid
 import { useApp } from "@/lib/store";
 import { whatsappText } from "@/lib/share";
 import { formatWeekRange } from "@/lib/time";
-import { Button, Card, PageHeader, cx, useToast } from "@/components/ui";
+import { Button, Card, PageHeader, buttonClass, cx, useToast } from "@/components/ui";
 import { PrintSheet } from "@/components/PrintSheet";
 
 export default function SharePage() {
@@ -66,17 +66,15 @@ export default function SharePage() {
               <Button onClick={() => copy(link, "link")} aria-label="Copier le lien" size="icon">
                 {copied === "link" ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
               </Button>
-              <Link href={`/p/${state.shareToken}`} target="_blank">
-                <Button aria-label="Ouvrir" size="icon">
-                  <ExternalLink size={16} />
-                </Button>
+              <Link href={`/p/${state.shareToken}`} aria-label="Ouvrir la page de l'équipe" className={buttonClass("secondary", "icon")}>
+                <ExternalLink size={16} />
               </Link>
             </div>
           </Card>
 
           <Card className="p-5">
             <div className="mb-3 flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
                 <FileDown size={18} />
               </span>
               <div>
@@ -87,38 +85,44 @@ export default function SharePage() {
             <Button onClick={() => window.print()} className="w-full">
               <FileDown size={16} /> Télécharger le PDF
             </Button>
-            <p className="mt-2 text-xs text-slate-400">Dans la fenêtre qui s&apos;ouvre, choisissez « Enregistrer au format PDF ».</p>
+            <p className="mt-2 text-xs text-slate-500">Dans la fenêtre qui s&apos;ouvre, choisissez « Enregistrer au format PDF ».</p>
           </Card>
         </div>
 
         <Card className="flex min-w-0 flex-col p-5">
-          <div className="mb-3 flex flex-wrap items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-              <MessageCircle size={18} />
-            </span>
-            <div className="flex-1">
-              <div className="font-medium">Message WhatsApp</div>
-              <div className="text-sm text-slate-500">À coller dans le groupe de l&apos;équipe.</div>
+          {/* En-tête : sur téléphone, le choix « par personne / par jour » passe sous le titre */}
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-whatsapp-bubble text-whatsapp">
+                <MessageCircle size={18} />
+              </span>
+              <div className="min-w-0">
+                <div className="font-medium">Message WhatsApp</div>
+                <div className="text-sm text-slate-600">À coller dans le groupe de l&apos;équipe.</div>
+              </div>
             </div>
-            <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs">
+            <div className="grid grid-cols-2 rounded-lg bg-slate-100 p-0.5 text-sm sm:text-xs" role="group" aria-label="Présentation du message">
               {(["person", "day"] as const).map((m) => (
-                <button key={m} onClick={() => setMode(m)} className={cx("rounded-md px-2.5 py-1 font-medium", mode === m ? "bg-white shadow-sm" : "text-slate-500")}>
+                <button
+                  key={m}
+                  aria-pressed={mode === m}
+                  onClick={() => setMode(m)}
+                  className={cx("min-h-11 rounded-md px-3 font-medium sm:min-h-8", mode === m ? "bg-white shadow-sm" : "text-slate-600")}
+                >
                   {m === "person" ? "Par personne" : "Par jour"}
                 </button>
               ))}
             </div>
           </div>
-          <pre className="mb-3 max-h-[420px] flex-1 overflow-auto rounded-xl bg-[#efeae2] p-4 font-sans text-[13px] leading-relaxed whitespace-pre-wrap text-slate-800 [overflow-wrap:anywhere]">
-            <span className="block rounded-lg bg-[#d9fdd3] p-3 shadow-xs">{text}</span>
+          <pre className="mb-3 max-h-[420px] flex-1 overflow-auto rounded-xl bg-whatsapp-chat p-4 font-sans text-[13px] leading-relaxed whitespace-pre-wrap text-slate-800 [overflow-wrap:anywhere]">
+            <span className="block rounded-lg bg-whatsapp-bubble p-3 shadow-xs">{text}</span>
           </pre>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button onClick={() => copy(text, "wa")} className="flex-1">
+            <Button onClick={() => copy(text, "wa")} className="sm:flex-1">
               {copied === "wa" ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />} Copier le texte
             </Button>
-            <a href={`https://wa.me/?text=${encodeURIComponent(text)}`} target="_blank" rel="noreferrer" className="flex-1">
-              <Button variant="whatsapp" className="w-full">
-                <MessageCircle size={16} /> Ouvrir WhatsApp
-              </Button>
+            <a href={`https://wa.me/?text=${encodeURIComponent(text)}`} target="_blank" rel="noreferrer" className={buttonClass("whatsapp", "md", "sm:flex-1")}>
+              <MessageCircle size={16} /> Ouvrir WhatsApp
             </a>
           </div>
         </Card>
