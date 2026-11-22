@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { CalendarDays, Clock, LayoutTemplate, Settings, Share2, SlidersHorizontal, Users } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { CalendarDays, Check, CloudOff, Clock, LayoutTemplate, Loader2, Settings, Share2, SlidersHorizontal, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { Logo } from "../Logo";
 import { cx } from "../ui";
@@ -21,7 +22,12 @@ const NAV = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
-  const { state, ready } = useApp();
+  const { state, ready, mode, needsSetup, saveStatus } = useApp();
+  const router = useRouter();
+  // Compte tout neuf : direction le questionnaire
+  useEffect(() => {
+    if (mode === "cloud" && needsSetup) router.replace("/configuration");
+  }, [mode, needsSetup, router]);
   const isActive = (href: string) => path === href || path.startsWith(href + "/");
 
   return (
@@ -71,6 +77,31 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Settings size={20} />
         </Link>
       </header>
+
+      {mode === "demo" && (
+        <div className="border-b border-brand-100 bg-brand-50 px-4 py-2.5 text-sm text-brand-900 sm:px-6 lg:px-8" role="note">
+          <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="rounded-full bg-brand-600 px-2 py-0.5 text-xs font-semibold text-white">Démo</span>
+            <span className="flex-1">Vos données restent sur cet appareil.</span>
+            <Link href="/inscription?depuis=demo" className="inline-flex min-h-11 items-center font-semibold underline underline-offset-2 sm:min-h-0">
+              Créer un compte et garder ces données
+            </Link>
+          </div>
+        </div>
+      )}
+      {mode === "cloud" && (
+        <div className="pointer-events-none fixed top-3 right-4 z-40 hidden md:block" aria-live="polite">
+          <span className={cx("inline-flex items-center gap-1.5 rounded-full border bg-white px-2.5 py-1 text-xs font-medium shadow-xs", saveStatus === "error" ? "border-red-300 text-red-800" : "border-slate-200 text-slate-600")}>
+            {saveStatus === "saving" ? <Loader2 size={12} className="animate-spin" /> : saveStatus === "error" ? <CloudOff size={12} /> : <Check size={12} />}
+            {saveStatus === "saving" ? "Enregistrement…" : saveStatus === "error" ? "Non enregistré, nouvel essai à la prochaine modification" : "Enregistré"}
+          </span>
+        </div>
+      )}
+      {mode === "cloud" && saveStatus === "error" && (
+        <div className="border-b border-red-300 bg-red-50 px-4 py-2.5 text-sm text-red-900 md:hidden" role="alert">
+          Problème de connexion : vos dernières modifications ne sont pas encore enregistrées.
+        </div>
+      )}
 
       <main className="mx-auto max-w-[1400px] px-4 pt-5 pb-28 sm:px-6 md:pt-8 md:pb-12 lg:px-8">{children}</main>
 

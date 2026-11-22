@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, ClipboardList, Download, MoreHorizontal, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { ChevronRight, ClipboardList, Download, LogOut, MoreHorizontal, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { uid, useApp } from "@/lib/store";
@@ -18,7 +18,7 @@ import { BackButton, Button, Card, Field, Modal, PageHeader, Toggle, Stepper, Ti
 import { Question, RulesFields, Segmented } from "@/components/setup/SetupWizard";
 
 export default function SettingsPage() {
-  const { state, update, reset } = useApp();
+  const { state, update, reset, mode, userEmail, signOut } = useApp();
   const toast = useToast();
   const router = useRouter();
   const rules = rulesOf(state);
@@ -250,24 +250,47 @@ export default function SettingsPage() {
         </Button>
       </Card>
 
-      <Card className="p-5">
-        <h2 className="mb-1 font-semibold">Démo</h2>
-        <p className="mb-4 text-sm text-slate-500">Remet le restaurant d&apos;exemple (10 employés).</p>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={() => {
-              reset();
-              toast("Démo réinitialisée");
-              router.push("/planning");
-            }}
-          >
-            <RotateCcw size={16} /> Réinitialiser la démo
-          </Button>
-          <Button variant="ghost" onClick={() => router.push("/connexion")}>
-            Se déconnecter
-          </Button>
-        </div>
-      </Card>
+      {mode === "cloud" ? (
+        <Card className="p-5">
+          <h2 className="mb-1 font-semibold">Compte</h2>
+          <p className="mb-4 text-sm text-slate-600">
+            Connecté avec <b>{userEmail}</b>. Vos données sont enregistrées automatiquement dans une base hébergée dans l&apos;Union européenne.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/nouveau-mot-de-passe" className={buttonClass()}>
+              Changer de mot de passe
+            </Link>
+            <Button
+              variant="ghost"
+              onClick={async () => {
+                await signOut();
+                router.push("/connexion");
+              }}
+            >
+              <LogOut size={16} /> Se déconnecter
+            </Button>
+          </div>
+        </Card>
+      ) : (
+        <Card className="p-5">
+          <h2 className="mb-1 font-semibold">Démo</h2>
+          <p className="mb-4 text-sm text-slate-600">Vos données restent sur cet appareil. Créez un compte pour les retrouver partout et les partager.</p>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/inscription?depuis=demo" className={buttonClass("primary")}>
+              Créer un compte et garder ces données
+            </Link>
+            <Button
+              onClick={() => {
+                reset();
+                toast("Démo réinitialisée");
+                router.push("/planning");
+              }}
+            >
+              <RotateCcw size={16} /> Réinitialiser la démo
+            </Button>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

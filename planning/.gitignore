@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Exemple de configuration (sans secret) : à garder dans le dépôt
+!.env.example

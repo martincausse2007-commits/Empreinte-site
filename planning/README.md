@@ -30,3 +30,19 @@ Puis ouvrir http://localhost:3000
 - `app/globals.css` : le thème (couleurs terracotta) — aucune couleur ailleurs
 - `app/fonts/` : la police Inter, hébergée dans le projet
 - `tests/` : tests automatiques
+
+## Comptes et base de données (Supabase)
+
+- Sans variables d'environnement, l'application tourne en **mode Démo** (données dans le navigateur).
+- Avec `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY` (voir `.env.example`), les comptes et la base sont actifs.
+- `supabase/migrations/` : les tables et la sécurité (RLS), à appliquer dans l'ordre.
+- `lib/cloud/` : traduction application ↔ tables, chargement et enregistrement automatique (seules les différences sont envoyées).
+- `proxy.ts` : garde la session à jour (Next.js 16, ancien « middleware »).
+
+### Tests de sécurité de la base
+
+Ils tournent sur un vrai PostgreSQL et prouvent qu'un établissement ne voit jamais les données d'un autre :
+
+```bash
+TEST_DATABASE_URL=postgres://postgres@localhost:5432/postgres npm run test:db
+```
