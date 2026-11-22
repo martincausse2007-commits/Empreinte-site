@@ -37,11 +37,11 @@ function Login() {
     const res =
       way === "password"
         ? await sb.auth.signInWithPassword({ email, password })
-        : await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: `${siteUrl()}/auth/callback?next=/planning` } });
+        : await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: `${siteUrl()}/auth/callback?next=/etablissements` } });
     setBusy(false);
     if (res.error) return setError(authErrorFr(res.error.message));
     if (way === "magic") setSent(true);
-    else router.push("/planning");
+    else router.push("/etablissements");
   }
 
   return (

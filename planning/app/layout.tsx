@@ -12,6 +12,13 @@ const inter = localFont({
   variable: "--font-inter",
   display: "swap",
 });
+// Police des titres (caractère, sans être décorative), elle aussi hébergée dans le projet.
+const display = localFont({
+  src: "./fonts/BricolageGrotesque-latin.woff2",
+  weight: "200 800",
+  variable: "--font-bricolage",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Quinzo — Le planning d'équipe en 15 minutes",
@@ -26,7 +33,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="fr" className={inter.variable}>
+    <html lang="fr" className={`${inter.variable} ${display.variable}`}>
       <body className="min-h-dvh font-sans antialiased">
         <AppProvider>
           <ToastProvider>

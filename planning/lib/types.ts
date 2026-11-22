@@ -127,6 +127,8 @@ export type Establishment = {
   closeMinutes: number; // rangement après la fermeture
   /** Jours fériés où l'établissement est FERMÉ (les autres sont ouverts). */
   closedHolidays?: HolidayId[];
+  /** Convention collective : numéro IDCC, ou "code" (Code du travail seul). */
+  convention?: string;
 };
 
 export type AppState = {

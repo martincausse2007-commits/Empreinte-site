@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
 import { Logo } from "../Logo";
 import { cx } from "../ui";
 import { useApp } from "@/lib/store";
-import { activity } from "@/lib/presets";
+import { EstablishmentSwitcher } from "./EstablishmentSwitcher";
 
 const NAV = [
   { href: "/planning", label: "Planning", icon: CalendarDays, mobile: true },
@@ -22,7 +22,7 @@ const NAV = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
-  const { state, ready, mode, needsSetup, saveStatus } = useApp();
+  const { mode, needsSetup, saveStatus } = useApp();
   const router = useRouter();
   // Compte tout neuf : direction le questionnaire
   useEffect(() => {
@@ -31,38 +31,37 @@ export function AppShell({ children }: { children: ReactNode }) {
   const isActive = (href: string) => path === href || path.startsWith(href + "/");
 
   return (
-    <div className="min-h-dvh md:pl-60">
-      {/* Barre latérale (ordinateur) */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-slate-200/80 bg-white md:flex">
-        <div className="px-5 pt-5 pb-4">
-          <Logo />
+    <div className="min-h-dvh md:pl-64">
+      {/* Barre latérale (ordinateur) : couleur encre, pour une identité marquée */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-ink text-white md:flex">
+        <Link href="/etablissements" className="px-5 pt-5 pb-4" aria-label="Quinzo, mes établissements">
+          <Logo tone="dark" />
+        </Link>
+        <div className="mx-3 mb-4">
+          <EstablishmentSwitcher tone="dark" />
         </div>
-        <div className="mx-3 mb-3 rounded-xl border border-slate-200/80 bg-slate-50 px-3 py-2.5">
-          <div className="truncate text-sm font-medium">{ready ? state.establishment.name : "…"}</div>
-          <div className="text-xs text-slate-500">{activity(state.establishment.type).label} · {state.employees.filter((e) => !e.archived).length} personnes</div>
-        </div>
-        <nav className="flex flex-1 flex-col gap-0.5 px-3">
+        <nav className="flex flex-1 flex-col gap-0.5 px-3" aria-label="Navigation principale">
           {NAV.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
               href={href}
+              aria-current={isActive(href) ? "page" : undefined}
               className={cx(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
-                isActive(href) ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+                "relative flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition",
+                isActive(href) ? "bg-white/12 text-white" : "text-white/75 hover:bg-white/8 hover:text-white",
               )}
             >
+              {isActive(href) && <span className="absolute top-2 bottom-2 left-0 w-1 rounded-full bg-brand-400" aria-hidden />}
               <Icon size={18} strokeWidth={isActive(href) ? 2.2 : 1.8} />
               {label}
             </Link>
           ))}
         </nav>
-        <div className="border-t border-slate-100 p-3">
+        <div className="border-t border-white/10 p-3">
           <Link
             href="/reglages"
-            className={cx(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
-              isActive("/reglages") ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-100",
-            )}
+            aria-current={isActive("/reglages") ? "page" : undefined}
+            className={cx("flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition", isActive("/reglages") ? "bg-white/12 text-white" : "text-white/75 hover:bg-white/8 hover:text-white")}
           >
             <Settings size={18} strokeWidth={1.8} />
             Réglages
@@ -70,9 +69,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      {/* En-tête (mobile) */}
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur md:hidden">
-        <Logo />
+      {/* En-tête (mobile) : l'établissement ouvert, qu'on peut changer d'un tap */}
+      <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-slate-200/80 bg-white/95 px-3 backdrop-blur md:hidden">
+        <div className="min-w-0 flex-1">
+          <EstablishmentSwitcher tone="light" />
+        </div>
         <Link href="/reglages" aria-label="Réglages" className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100">
           <Settings size={20} />
         </Link>
@@ -111,7 +112,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Link
             key={href}
             href={href}
-            className={cx("flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium", isActive(href) ? "text-brand-600" : "text-slate-500")}
+            aria-current={isActive(href) ? "page" : undefined}
+            className={cx("flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium", isActive(href) ? "text-brand-700" : "text-slate-600")}
           >
             <Icon size={21} strokeWidth={isActive(href) ? 2.2 : 1.8} />
             {label}

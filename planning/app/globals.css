@@ -9,6 +9,7 @@
  */
 @theme {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-bricolage), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
   --color-brand-50: #fbede7;
   --color-brand-100: #f5ddd3;
@@ -46,6 +47,15 @@
 
 html {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Titres : police de caractère, serrée */
+h1,
+h2,
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
 }
 
 body {
@@ -119,5 +129,27 @@ body {
     display: block !important;
     position: absolute;
     inset: 0;
+  }
+}
+
+/* Accueil : les prénoms se posent un à un dans l'aperçu (désactivé si l'on réduit les animations) */
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.mock-chip {
+  animation: chip-in 0.35s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mock-chip,
+  .animate-pop,
+  .animate-sheet {
+    animation: none;
   }
 }

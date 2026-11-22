@@ -14,11 +14,13 @@ import { COLOR_ORDER, POST_COLORS } from "@/lib/colors";
 import type { Rules, Service } from "@/lib/types";
 
 const BREAKS = [0, 20, 30, 45, 60, 90];
-import { BackButton, Button, Card, Field, Modal, PageHeader, Toggle, Stepper, TimeSelect, buttonClass, cx, inputClass, useToast } from "@/components/ui";
+import { BackButton, Button, Card, Field, Modal, PageHeader, Toggle, useConfirm, Stepper, TimeSelect, buttonClass, cx, inputClass, useToast } from "@/components/ui";
 import { Question, RulesFields, Segmented } from "@/components/setup/SetupWizard";
+import { ConventionPicker } from "@/components/setup/ConventionPicker";
 
 export default function SettingsPage() {
-  const { state, update, reset, mode, userEmail, signOut } = useApp();
+  const { state, update, reset, mode, userEmail, signOut, establishments, activeId, removeEstablishment } = useApp();
+  const confirm = useConfirm();
   const toast = useToast();
   const router = useRouter();
   const rules = rulesOf(state);
@@ -57,6 +59,27 @@ export default function SettingsPage() {
               <ClipboardList size={14} /> Refaire le questionnaire
             </Link>
           </div>
+          {(mode === "demo" ? establishments.length > 1 : establishments.find((e) => e.id === activeId)?.role === "owner") && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 px-4 py-3">
+              <div className="text-sm">
+                <div className="font-medium">Supprimer cet établissement</div>
+                <div className="text-xs text-slate-600">Équipe, plannings, absences et réglages de « {state.establishment.name} » seront effacés.</div>
+              </div>
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={async () => {
+                  if (!(await confirm({ title: `Supprimer « ${state.establishment.name} » ?`, text: "Toutes ses données seront définitivement effacées. Vos autres établissements ne sont pas touchés.", confirmLabel: "Supprimer", danger: true })))
+                    return;
+                  await removeEstablishment(activeId!);
+                  toast("Établissement supprimé");
+                  router.push("/etablissements");
+                }}
+              >
+                <Trash2 size={14} /> Supprimer
+              </Button>
+            </div>
+          )}
         </div>
       </Card>
 
@@ -70,8 +93,16 @@ export default function SettingsPage() {
 
       <Card className="mb-4 px-5 pt-5 pb-2">
         <h2 className="font-semibold">Règles du planning</h2>
-        <p className="text-sm text-slate-500">Appliquées par la génération automatique et par les alertes.</p>
-        <div className="divide-y divide-slate-100">
+        <p className="mb-4 text-sm text-slate-600">Appliquées par la génération automatique et par les alertes.</p>
+        <ConventionPicker
+          value={state.establishment.convention ?? "code"}
+          activity={state.establishment.type}
+          onChange={(idcc, r) => {
+            update((s) => ({ ...s, establishment: { ...s.establishment, convention: idcc }, rules: { ...rulesOf(s), ...r } }));
+            if (idcc) toast("Convention enregistrée, règles ajustées");
+          }}
+        />
+        <div className="mt-4 divide-y divide-slate-100">
           <RulesFields rules={rules} setRules={setRules} />
           <Question title="Coupures (deux créneaux le même jour)">
             <Segmented

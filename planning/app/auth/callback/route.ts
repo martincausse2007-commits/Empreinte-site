@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   const code = url.searchParams.get("code");
   const tokenHash = url.searchParams.get("token_hash");
   const type = url.searchParams.get("type") as EmailOtpType | null;
-  const nextParam = url.searchParams.get("next") ?? "/planning";
+  const nextParam = url.searchParams.get("next") ?? "/etablissements";
   // Uniquement des redirections internes (jamais vers un autre site)
   const next = nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/planning";
 

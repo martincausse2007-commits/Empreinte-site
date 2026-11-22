@@ -5,6 +5,11 @@ Je le mets à jour à chaque lot. Coche les cases au fur et à mesure.
 
 ---
 
+## À regarder tout de suite
+
+- [ ] **Nouvelle page d'accueil** et **nouvelle accroche** : dis-moi si elles te plaisent (voir les autres propositions d'accroche dans la conversation).
+- [ ] **Choisis ta convention collective** dans Réglages → Règles du planning, et vérifie la liste « À vérifier ».
+
 ## Maintenant (Lot 2a terminé) — brancher la vraie base de données
 
 Compte environ **30 minutes**. Fais les étapes dans l'ordre, et ne colle **jamais** une clé dans la conversation.
@@ -18,10 +23,11 @@ Compte environ **30 minutes**. Fais les étapes dans l'ordre, et ne colle **jama
   - Plan : Free.
 - [ ] Attends 2 minutes que le projet soit prêt.
 
-### 2. Créer les tables (copier-coller, 2 fois)
+### 2. Créer les tables (copier-coller, 3 fois, dans l'ordre)
 - [ ] Dans Supabase, menu de gauche → **SQL Editor** → « New query ».
 - [ ] Sur GitHub, ouvre le fichier `planning/supabase/migrations/20261122000001_schema.sql`, bouton « Copy raw file », colle-le dans l'éditeur, clique **Run**. Tu dois lire « Success. No rows returned ».
 - [ ] Recommence avec `planning/supabase/migrations/20261122000002_security.sql`.
+- [ ] Puis avec `planning/supabase/migrations/20261123000003_multi_etablissements.sql` (plusieurs établissements + convention collective).
 - [ ] Vérifie : menu **Table Editor** → tu vois `establishments`, `employees`, `shifts`… avec un petit badge « RLS enabled » (sécurité activée).
 
 ### 3. Régler les comptes (Authentication)

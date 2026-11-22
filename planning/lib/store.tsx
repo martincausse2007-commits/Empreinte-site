@@ -4,30 +4,49 @@
 //  - Démo : pas de compte, données gardées dans ce navigateur (localStorage) ;
 //  - Compte : données dans Supabase (base en Union européenne), enregistrées
 //    automatiquement ; seules les modifications sont envoyées.
+// Un gérant peut avoir PLUSIEURS établissements : un seul est « actif » à la fois.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { AppState, Shift } from "./types";
 import { createDemoState, STATE_VERSION } from "./demo-data";
+import { createDemoStore } from "./demo-store";
 import { getSupabase } from "./supabase/client";
-import { createEstablishmentFrom, loadEstablishment, myEstablishment, pushChanges } from "./cloud/sync";
+import { createEstablishmentFrom, listEstablishments, loadEstablishment, pushChanges } from "./cloud/sync";
 import type { Rows } from "./cloud/mapping";
 import { addWeeks, mondayOf } from "./time";
 
-const KEY = "planning-demo-state";
+const LEGACY_KEY = "planning-demo-state"; // ancienne démo (un seul établissement)
+const KEY = "quinzo-demo-v2";
+export const IMPORT_FLAG = "quinzo-import-demo";
+const WEEK_KEY = "quinzo-current-week";
+const ACTIVE_KEY = "quinzo-active-establishment";
 
 export type Mode = "loading" | "demo" | "cloud";
 export type SaveStatus = "saved" | "saving" | "error";
+export type EstablishmentSummary = { id: string; name: string; type: AppState["establishment"]["type"]; role?: "owner" | "manager" };
+
+/** Démo : tous les établissements du navigateur, et celui qui est ouvert. */
+type DemoStore = { version: number; active: string; items: Record<string, AppState> };
 
 type Ctx = {
   state: AppState;
   ready: boolean;
   /** demo = sans compte ; cloud = connecté (données dans la base). */
   mode: Mode;
-  /** Connecté mais pas encore d'établissement (questionnaire à faire). */
+  /** Connecté mais aucun établissement : questionnaire à faire. */
   needsSetup: boolean;
   userEmail: string | null;
   saveStatus: SaveStatus;
   signOut: () => Promise<void>;
+  /** Tous les établissements du gérant, et celui qui est ouvert. */
+  establishments: EstablishmentSummary[];
+  activeId: string | null;
+  switchTo: (id: string) => Promise<void>;
+  /** Ajoute un établissement (fin du questionnaire « nouvel établissement ») et l'ouvre. */
+  addEstablishment: (s: AppState) => Promise<void>;
+  removeEstablishment: (id: string) => Promise<void>;
+  /** Données d'un établissement de la démo (pour les cartes de la page d'accueil). */
+  demoItem: (id: string) => AppState | undefined;
   /** `record: true` = la modification des plannings peut être annulée. */
   update: (fn: (s: AppState) => AppState, opts?: { record?: boolean }) => void;
   /** Modifie les créneaux d'une semaine (toujours annulable). */
@@ -36,30 +55,47 @@ type Ctx = {
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  /** Démo : remet les établissements d'exemple. */
   reset: () => void;
+  /** Remplace l'établissement ouvert (ex. « refaire le questionnaire »). */
   replace: (s: AppState) => void;
 };
 
 const AppContext = createContext<Ctx | null>(null);
 
-function load(): AppState | null {
+let n = 0;
+export const uid = (prefix = "id") => `${prefix}${Date.now().toString(36)}${(n++).toString(36)}`;
+
+const normalize = (s: AppState): AppState => ({ ...s, absences: s.absences ?? [] });
+
+function loadDemo(): DemoStore | null {
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as AppState;
-    if (parsed.version !== STATE_VERSION) return null;
-    return { ...parsed, absences: parsed.absences ?? [] }; // données enregistrées avant l'ajout des absences
+    if (raw) {
+      const d = JSON.parse(raw) as DemoStore;
+      if (d.version === STATE_VERSION && d.items?.[d.active]) {
+        return { ...d, items: Object.fromEntries(Object.entries(d.items).map(([k, v]) => [k, normalize(v)])) };
+      }
+    }
+    // Ancienne démo à un seul établissement : on la reprend telle quelle
+    const legacy = localStorage.getItem(LEGACY_KEY);
+    if (legacy) {
+      const s = JSON.parse(legacy) as AppState;
+      if (s.version === STATE_VERSION) return { version: STATE_VERSION, active: "d1", items: { d1: normalize(s) } };
+    }
   } catch {
-    return null;
+    /* données illisibles : on repart de la démo */
   }
+  return null;
 }
 
 /** Données de la démo gardées dans ce navigateur (pour les reprendre en créant un compte). */
-export function localDemoData(): AppState | null {
-  return load();
+export function localDemoData(): AppState[] | null {
+  const d = loadDemo();
+  return d ? Object.values(d.items) : null;
 }
-export const IMPORT_FLAG = "quinzo-import-demo";
-const WEEK_KEY = "quinzo-current-week";
+
+const summaryOf = (id: string, s: AppState): EstablishmentSummary => ({ id, name: s.establishment.name, type: s.establishment.type });
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(() => createDemoState());
@@ -68,120 +104,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [needsSetup, setNeedsSetup] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
+  const [establishments, setEstablishments] = useState<EstablishmentSummary[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const demo = useRef<DemoStore | null>(null);
   const est = useRef<string | null>(null);
   const synced = useRef<Rows | null>(null);
-
-  // Démarrage : connecté → on charge l'établissement depuis la base ; sinon → démo locale
-  const boot = useCallback(async () => {
-    const sb = getSupabase();
-    const session = sb ? (await sb.auth.getSession()).data.session : null;
-    if (!sb || !session) {
-      est.current = null;
-      synced.current = null;
-      const saved = load();
-      if (saved) setState(saved);
-      setUserEmail(null);
-      setNeedsSetup(false);
-      setMode("demo");
-      setReady(true);
-      return;
-    }
-    setUserEmail(session.user.email ?? null);
-    try {
-      let id = await myEstablishment(sb);
-      // Inscription depuis la démo : on reprend les données de la démo
-      if (!id && localStorage.getItem(IMPORT_FLAG)) {
-        const demo = load();
-        if (demo) {
-          const created = await createEstablishmentFrom(sb, demo);
-          id = created.est;
-        }
-        localStorage.removeItem(IMPORT_FLAG);
-      }
-      if (!id) {
-        est.current = null;
-        setNeedsSetup(true);
-        setMode("cloud");
-        setReady(true);
-        return;
-      }
-      let week = localStorage.getItem(WEEK_KEY) ?? undefined;
-      if (!week) week = addWeeks(mondayOf(new Date()), 1);
-      const { state: loaded, rows } = await loadEstablishment(sb, id, week);
-      est.current = id;
-      synced.current = rows;
-      setState(loaded);
-      setNeedsSetup(false);
-      setMode("cloud");
-      setReady(true);
-    } catch {
-      setSaveStatus("error");
-      setMode("cloud");
-      setReady(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- chargement initial des données
-    void boot();
-    const sb = getSupabase();
-    if (!sb) return;
-    const { data } = sb.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT") void boot();
-    });
-    return () => data.subscription.unsubscribe();
-  }, [boot]);
-
-  // Enregistrement : démo → navigateur ; compte → base (après 0,7 s sans modification)
-  useEffect(() => {
-    if (!ready || mode === "loading") return;
-    if (mode === "demo") {
-      try {
-        localStorage.setItem(KEY, JSON.stringify(state));
-      } catch {
-        /* stockage indisponible : la démo marche quand même */
-      }
-      return;
-    }
-    try {
-      localStorage.setItem(WEEK_KEY, state.currentWeek);
-    } catch {
-      /* ignore */
-    }
-    const sb = getSupabase();
-    if (!sb || !est.current) return;
-    setSaveStatus("saving");
-    const id = est.current;
-    const timer = setTimeout(async () => {
-      try {
-        synced.current = await pushChanges(sb, id, synced.current, state);
-        setSaveStatus("saved");
-      } catch {
-        setSaveStatus("error");
-      }
-    }, 700);
-    return () => clearTimeout(timer);
-  }, [state, ready, mode]);
-
-  const signOut = useCallback(async () => {
-    await getSupabase()?.auth.signOut();
-    est.current = null;
-    synced.current = null;
-    try {
-      localStorage.removeItem(WEEK_KEY);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  // ---- Annuler / rétablir (sur les plannings uniquement, 50 étapes) ----------
   const stateRef = useRef(state);
   useEffect(() => {
     stateRef.current = state;
   });
+
+  // ---- Annuler / rétablir (sur les plannings uniquement, 50 étapes) ----------
   const past = useRef<AppState["plans"][]>([]);
   const future = useRef<AppState["plans"][]>([]);
-  // Nombre d'étapes à annuler / rétablir (copie des piles, lisible pendant l'affichage)
   const [hist, setHist] = useState({ undo: 0, redo: 0 });
   const refresh = useCallback(() => setHist({ undo: past.current.length, redo: future.current.length }), []);
   const remember = useCallback(() => {
@@ -196,6 +131,245 @@ export function AppProvider({ children }: { children: ReactNode }) {
     refresh();
   }, [refresh]);
 
+  const weekPref = () => {
+    try {
+      return localStorage.getItem(WEEK_KEY) ?? addWeeks(mondayOf(new Date()), 1);
+    } catch {
+      return addWeeks(mondayOf(new Date()), 1);
+    }
+  };
+
+  // ---- Démarrage ----------------------------------------------------------------
+  const boot = useCallback(async () => {
+    const sb = getSupabase();
+    const session = sb ? (await sb.auth.getSession()).data.session : null;
+    clearHistory();
+    if (!sb || !session) {
+      est.current = null;
+      synced.current = null;
+      const d = loadDemo() ?? createDemoStore();
+      demo.current = d;
+      setEstablishments(Object.entries(d.items).map(([id, s]) => summaryOf(id, s)));
+      setActiveId(d.active);
+      setState(d.items[d.active]);
+      setUserEmail(null);
+      setNeedsSetup(false);
+      setMode("demo");
+      setReady(true);
+      return;
+    }
+    demo.current = null;
+    setUserEmail(session.user.email ?? null);
+    try {
+      let list = await listEstablishments(sb);
+      // Inscription depuis la démo : on reprend tous les établissements de la démo
+      if (!list.length && localStorage.getItem(IMPORT_FLAG)) {
+        for (const s of localDemoData() ?? []) await createEstablishmentFrom(sb, s);
+        localStorage.removeItem(IMPORT_FLAG);
+        list = await listEstablishments(sb);
+      }
+      setEstablishments(list);
+      if (!list.length) {
+        est.current = null;
+        setActiveId(null);
+        setNeedsSetup(true);
+        setMode("cloud");
+        setReady(true);
+        return;
+      }
+      const wanted = localStorage.getItem(ACTIVE_KEY);
+      const id = list.find((e) => e.id === wanted)?.id ?? list[0].id;
+      const { state: loaded, rows } = await loadEstablishment(sb, id, weekPref());
+      est.current = id;
+      synced.current = rows;
+      setActiveId(id);
+      setState(loaded);
+      setNeedsSetup(false);
+      setMode("cloud");
+      setReady(true);
+    } catch {
+      setSaveStatus("error");
+      setMode("cloud");
+      setReady(true);
+    }
+  }, [clearHistory]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- chargement initial des données
+    void boot();
+    const sb = getSupabase();
+    if (!sb) return;
+    const { data } = sb.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT") void boot();
+    });
+    return () => data.subscription.unsubscribe();
+  }, [boot]);
+
+  // ---- Enregistrement : démo → navigateur ; compte → base (0,7 s après la dernière modification)
+  const flush = useCallback(async () => {
+    const sb = getSupabase();
+    if (!sb || !est.current) return;
+    setSaveStatus("saving");
+    try {
+      synced.current = await pushChanges(sb, est.current, synced.current, stateRef.current);
+      setSaveStatus("saved");
+    } catch {
+      setSaveStatus("error");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!ready || mode === "loading") return;
+    if (mode === "demo") {
+      const d = demo.current;
+      if (!d || !activeId) return;
+      d.items[activeId] = state;
+      d.active = activeId;
+      try {
+        localStorage.setItem(KEY, JSON.stringify(d));
+      } catch {
+        /* stockage indisponible : la démo marche quand même */
+      }
+      setEstablishments((l) => l.map((e) => (e.id === activeId ? summaryOf(activeId, state) : e)));
+      return;
+    }
+    try {
+      localStorage.setItem(WEEK_KEY, state.currentWeek);
+    } catch {
+      /* ignore */
+    }
+    if (!est.current) return;
+    setSaveStatus("saving");
+    const timer = setTimeout(() => void flush(), 700);
+    return () => clearTimeout(timer);
+  }, [state, ready, mode, activeId, flush]);
+
+  // ---- Plusieurs établissements -------------------------------------------------
+  const switchTo = useCallback(
+    async (id: string) => {
+      if (id === activeId) return;
+      clearHistory();
+      if (mode === "demo" && demo.current) {
+        demo.current.items[demo.current.active] = stateRef.current;
+        demo.current.active = id;
+        setActiveId(id);
+        setState(demo.current.items[id]);
+        return;
+      }
+      const sb = getSupabase();
+      if (!sb) return;
+      await flush(); // on enregistre l'établissement qu'on quitte
+      setReady(false);
+      const { state: loaded, rows } = await loadEstablishment(sb, id, weekPref());
+      est.current = id;
+      synced.current = rows;
+      try {
+        localStorage.setItem(ACTIVE_KEY, id);
+      } catch {
+        /* ignore */
+      }
+      setActiveId(id);
+      setState(loaded);
+      setReady(true);
+    },
+    [activeId, mode, clearHistory, flush],
+  );
+
+  const addEstablishment = useCallback(
+    async (s: AppState) => {
+      clearHistory();
+      if (mode === "demo" && demo.current) {
+        demo.current.items[demo.current.active] = stateRef.current;
+        const id = uid("d");
+        demo.current.items[id] = s;
+        demo.current.active = id;
+        setEstablishments((l) => [...l, summaryOf(id, s)]);
+        setActiveId(id);
+        setState(s);
+        return;
+      }
+      const sb = getSupabase();
+      if (!sb) return;
+      await flush();
+      setSaveStatus("saving");
+      try {
+        const { est: id, rows } = await createEstablishmentFrom(sb, s);
+        est.current = id;
+        synced.current = rows;
+        try {
+          localStorage.setItem(ACTIVE_KEY, id);
+        } catch {
+          /* ignore */
+        }
+        setEstablishments((l) => [...l, { ...summaryOf(id, s), role: "owner" }]);
+        setActiveId(id);
+        setState(s);
+        setNeedsSetup(false);
+        setSaveStatus("saved");
+      } catch {
+        setSaveStatus("error");
+      }
+    },
+    [mode, clearHistory, flush],
+  );
+
+  const removeEstablishment = useCallback(
+    async (id: string) => {
+      const rest = establishments.filter((e) => e.id !== id);
+      if (mode === "demo" && demo.current) {
+        if (!rest.length) return; // la démo garde au moins un établissement
+        delete demo.current.items[id];
+        setEstablishments(rest);
+        if (id === activeId) {
+          demo.current.active = rest[0].id;
+          setActiveId(rest[0].id);
+          setState(demo.current.items[rest[0].id]);
+        }
+        try {
+          localStorage.setItem(KEY, JSON.stringify(demo.current));
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+      const sb = getSupabase();
+      if (!sb) return;
+      const { error } = await sb.from("establishments").delete().eq("id", id);
+      if (error) throw error;
+      setEstablishments(rest);
+      if (id === activeId) {
+        est.current = null;
+        synced.current = null;
+        if (rest.length) {
+          const { state: loaded, rows } = await loadEstablishment(sb, rest[0].id, weekPref());
+          est.current = rest[0].id;
+          synced.current = rows;
+          setActiveId(rest[0].id);
+          setState(loaded);
+        } else {
+          setActiveId(null);
+          setNeedsSetup(true);
+        }
+      }
+    },
+    [establishments, mode, activeId],
+  );
+
+  const demoItem = useCallback((id: string) => (id === activeId ? stateRef.current : demo.current?.items[id]), [activeId]);
+
+  const signOut = useCallback(async () => {
+    await getSupabase()?.auth.signOut();
+    est.current = null;
+    synced.current = null;
+    try {
+      localStorage.removeItem(WEEK_KEY);
+      localStorage.removeItem(ACTIVE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // ---- Modifications ------------------------------------------------------------
   const update = useCallback(
     (fn: (s: AppState) => AppState, opts?: { record?: boolean }) => {
       if (opts?.record) remember();
@@ -224,29 +398,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, plans: next }));
     refresh();
   }, [refresh]);
+
   const reset = useCallback(() => {
     clearHistory();
-    setState(createDemoState());
+    const d = createDemoStore();
+    demo.current = d;
+    setEstablishments(Object.entries(d.items).map(([id, s]) => summaryOf(id, s)));
+    setActiveId(d.active);
+    setState(d.items[d.active]);
   }, [clearHistory]);
+
   const replace = useCallback(
     (s: AppState) => {
       clearHistory();
-      setState(s);
-      // Connecté sans établissement (fin du questionnaire) : on le crée dans la base
-      const sb = getSupabase();
-      if (mode === "cloud" && sb && !est.current) {
-        setSaveStatus("saving");
-        createEstablishmentFrom(sb, s)
-          .then(({ est: id, rows }) => {
-            est.current = id;
-            synced.current = rows;
-            setNeedsSetup(false);
-            setSaveStatus("saved");
-          })
-          .catch(() => setSaveStatus("error"));
+      // Connecté sans aucun établissement : on le crée dans la base
+      if (mode === "cloud" && !est.current) {
+        void addEstablishment(s);
+        return;
       }
+      setState(s);
     },
-    [clearHistory, mode],
+    [clearHistory, mode, addEstablishment],
   );
 
   return (
@@ -259,6 +431,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         userEmail,
         saveStatus,
         signOut,
+        establishments,
+        activeId,
+        switchTo,
+        addEstablishment,
+        removeEstablishment,
+        demoItem,
         update,
         setShifts,
         reset,
@@ -279,6 +457,3 @@ export function useApp() {
   if (!ctx) throw new Error("useApp doit être utilisé dans <AppProvider>");
   return ctx;
 }
-
-let n = 0;
-export const uid = (prefix = "id") => `${prefix}${Date.now().toString(36)}${(n++).toString(36)}`;

@@ -19,11 +19,15 @@ async function fetchAll(sb: SupabaseClient, table: string, est: string): Promise
   }
 }
 
-/** Établissement de l'utilisateur connecté (le premier dont il est membre). */
-export async function myEstablishment(sb: SupabaseClient): Promise<string | null> {
-  const { data, error } = await sb.from("members").select("establishment_id").limit(1);
+/** Tous les établissements dont l'utilisateur connecté est membre. */
+export async function listEstablishments(sb: SupabaseClient): Promise<{ id: string; name: string; type: AppState["establishment"]["type"]; role: "owner" | "manager" }[]> {
+  const { data, error } = await sb.from("members").select("role, establishments ( id, name, activity, created_at )");
   if (error) throw error;
-  return (data?.[0]?.establishment_id as string) ?? null;
+  type Row = { role: "owner" | "manager"; establishments: { id: string; name: string; activity: string; created_at: string } | null };
+  return ((data ?? []) as unknown as Row[])
+    .filter((r) => r.establishments)
+    .sort((a, b) => a.establishments!.created_at.localeCompare(b.establishments!.created_at))
+    .map((r) => ({ id: r.establishments!.id, name: r.establishments!.name, type: r.establishments!.activity as AppState["establishment"]["type"], role: r.role }));
 }
 
 export async function loadEstablishment(sb: SupabaseClient, est: string, currentWeek?: string): Promise<{ state: AppState; rows: Rows }> {

@@ -3,6 +3,7 @@
 
 import type { ActivityId, AppState, Employee, OpeningHours, Organisation, Post, Rules, Service } from "./types";
 import { ACTIVITIES, DEFAULT_RULES, activity, buildServices } from "./presets";
+import { findConvention, suggestedConvention } from "./conventions";
 import { coverage, needKey, serviceActive, shiftHours, svTime } from "./rules";
 import { generateWeek } from "./generate";
 import { addWeeks, mondayOf } from "./time";
@@ -24,6 +25,8 @@ export type SetupDraft = {
   /** clé "serviceId|postId" -> besoins en semaine / le week-end */
   needs: Record<string, { weekday: number; weekend: number }>;
   rules: Rules;
+  /** Convention collective (IDCC) ou "code". */
+  convention: string;
   employees: SetupEmployee[];
 };
 
@@ -32,7 +35,8 @@ export const sid = (p: string) => `${p}${Date.now().toString(36)}${(n++).toStrin
 
 export function draftFor(id: ActivityId, name = ""): SetupDraft {
   const a = activity(id);
-  const rules = { ...DEFAULT_RULES, ...a.rules };
+  const convention = suggestedConvention(id);
+  const rules = { ...DEFAULT_RULES, ...a.rules, ...(findConvention(convention)?.rules ?? {}) };
   const posts: SetupPost[] = a.posts.map((p, i) => ({ id: `p${i + 1}`, name: p.name, color: p.color, selected: p.selected }));
   const d: SetupDraft = {
     name,
@@ -46,6 +50,7 @@ export function draftFor(id: ActivityId, name = ""): SetupDraft {
     posts,
     needs: {},
     rules,
+    convention,
     employees: [],
   };
   d.services = rebuildServices(d);
@@ -165,6 +170,7 @@ export function stateFromDraft(d: SetupDraft): AppState {
       opening: d.opening,
       prepMinutes: d.prepMinutes,
       closeMinutes: d.closeMinutes,
+      convention: d.convention ?? "code",
     },
     rules: d.rules,
     posts,

@@ -6,6 +6,8 @@
 import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useBack } from "@/lib/history";
+import { ConventionPicker } from "./ConventionPicker";
+import { findConvention } from "@/lib/conventions";
 import {
   ArrowLeft,
   ArrowRight,
@@ -62,16 +64,18 @@ export function SetupWizard() {
 function Wizard() {
   const router = useRouter();
   const params = useSearchParams();
-  const { replace } = useApp();
+  const { replace, addEstablishment, establishments } = useApp();
+  // ?nouveau=1 : on ajoute un établissement au lieu de remplacer celui qui est ouvert
+  const isNew = params.get("nouveau") === "1" || establishments.length === 0;
   const toast = useToast();
-  const quit = useBack("/");
+  const quit = useBack("/etablissements");
   const step = Math.min(STEPS.length - 1, Math.max(0, Number(params.get("etape") ?? "1") - 1 || 0));
   const pushed = useRef(0);
   // Brouillon gardé pendant la session : on peut quitter, revenir ou recharger sans tout perdre.
   const [d, setD] = useState<SetupDraft>(() => {
     try {
       const saved = sessionStorage.getItem(DRAFT_KEY);
-      if (saved) return JSON.parse(saved) as SetupDraft;
+      if (saved && !(params.get("nouveau") === "1" && !params.get("etape"))) return JSON.parse(saved) as SetupDraft;
     } catch {
       /* ignore */
     }
@@ -86,7 +90,7 @@ function Wizard() {
   }, [d]);
   const goTo = (n: number) => {
     pushed.current++;
-    router.push(`/configuration?etape=${n + 1}`);
+    router.push(`/configuration?etape=${n + 1}${isNew ? "&nouveau=1" : ""}`);
   };
 
   /** Modifie le brouillon ; si les horaires ou l'organisation changent, on recalcule les créneaux. */
@@ -120,7 +124,8 @@ function Wizard() {
       state.plans[state.currentWeek] = res.shifts;
       toast(res.unfilled ? `Première semaine générée (${res.unfilled} place${res.unfilled > 1 ? "s" : ""} à pourvoir)` : "Votre première semaine est prête");
     } else toast("Établissement créé. Ajoutez votre équipe pour générer le planning.");
-    replace(state);
+    if (isNew) void addEstablishment(state);
+    else replace(state);
     try {
       sessionStorage.removeItem(DRAFT_KEY);
     } catch {
@@ -135,7 +140,7 @@ function Wizard() {
     if (pushed.current > 0) {
       pushed.current--;
       router.back();
-    } else router.replace(`/configuration?etape=${step}`);
+    } else router.replace(`/configuration?etape=${step}${isNew ? "&nouveau=1" : ""}`);
   };
 
   return (
@@ -158,7 +163,7 @@ function Wizard() {
         {step === 2 && <StepOrganisation d={d} patch={patch} setRules={setRules} />}
         {step === 3 && <StepPosts d={d} patch={patch} />}
         {step === 4 && <StepNeeds d={d} patch={patch} />}
-        {step === 5 && <StepRules d={d} setRules={setRules} />}
+        {step === 5 && <StepRules d={d} setRules={setRules} patch={patch} />}
         {step === 6 && <StepTeam d={d} patch={patch} />}
         {step === 7 && <StepSummary d={d} goTo={goTo} />}
       </main>
@@ -566,10 +571,12 @@ function StepNeeds({ d, patch }: { d: SetupDraft; patch: (p: Partial<SetupDraft>
 
 // ---- 6. Règles -----------------------------------------------------------------
 
-function StepRules({ d, setRules }: { d: SetupDraft; setRules: (r: Partial<Rules>) => void }) {
+function StepRules({ d, setRules, patch }: { d: SetupDraft; setRules: (r: Partial<Rules>) => void; patch: (p: Partial<SetupDraft>) => void }) {
   return (
     <>
-      <Title title="Vos règles de planning" text="Le planning généré les respectera toujours, et vous serez alerté si une modification les enfreint." />
+      <Title title="Vos règles de planning" text="Choisissez votre convention collective : les règles s'ajustent. Le planning généré les respectera toujours." />
+      <ConventionPicker value={d.convention} activity={d.activity} onChange={(idcc, rules) => patch({ convention: idcc, rules: { ...d.rules, ...rules } })} />
+      <div className="mt-6 mb-1 text-[15px] font-semibold">Réglages détaillés</div>
       <RulesFields rules={d.rules} setRules={setRules} />
     </>
   );
@@ -700,6 +707,7 @@ function StepSummary({ d, goTo }: { d: SetupDraft; goTo: (s: number) => void }) 
       { step: 2, label: "Coupures", value: r.splitShifts === "never" ? "Jamais" : r.splitShifts === "limited" ? `Parfois (${r.maxSplitsPerWeek} max/semaine)` : "Souvent" },
       { step: 3, label: "Postes", value: posts.map((p) => p.name).join(", ") },
       { step: 4, label: "Besoins", value: `${formatHours(total)} de travail par semaine` },
+      { step: 5, label: "Convention", value: findConvention(d.convention) ? `${findConvention(d.convention)!.label}` : d.convention ? `IDCC ${d.convention}` : "Code du travail" },
       {
         step: 5,
         label: "Règles",

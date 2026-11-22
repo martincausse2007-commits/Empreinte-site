@@ -102,7 +102,17 @@ run("Sécurité de la base (RLS)", () => {
 
   it("on ne crée pas d'établissement en direct (seulement via create_establishment)", async () => {
     await expect(as(B, (q) => q("insert into public.establishments (name) values ('Fantôme')"))).rejects.toThrow(/row-level security/);
-    await expect(as(B, (q) => q("select public.create_establishment('Deuxième', 'bar')"))).rejects.toThrow(/Un seul établissement/);
+  });
+
+  it("un gérant peut avoir plusieurs établissements, chacun isolé des autres gérants", async () => {
+    const second = await as(A, async (q) => (await q("select public.create_establishment('Chez A — 2', 'bar') as id")).rows[0].id as string);
+    const mine = await as(A, async (q) => (await q("select count(*)::int as n from public.establishments")).rows[0].n);
+    expect(mine).toBe(2);
+    await as(A, (q) => q("insert into public.employees (establishment_id, id, first_name, contract_hours) values ($1, 'e1', 'Bob', 20)", [second]));
+    expect(await as(B, async (q) => (await q("select count(*)::int as n from public.employees where establishment_id = $1", [second])).rows[0].n)).toBe(0);
+    // Le même identifiant « e1 » existe dans les deux établissements de A sans se mélanger
+    const names = await as(A, async (q) => (await q("select first_name from public.employees where id = 'e1' order by first_name")).rows.map((r) => r.first_name));
+    expect(names).toEqual(["Alice", "Bob"]);
   });
 
   it("un visiteur anonyme n'a accès à aucune table", async () => {

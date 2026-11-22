@@ -64,7 +64,7 @@ export function createDemoState(name?: string): AppState {
     services: RESTAURANT_SERVICES,
     employees: restaurantEmployees(),
     needs: restaurantNeeds(),
-    rules: { ...DEFAULT_RULES, splitShifts: "often" as const },
+    rules: { ...DEFAULT_RULES, splitShifts: "often" as const, maxHoursPerDay: 11 }, // convention HCR
   };
 
   // Semaine à préparer = la semaine prochaine. La semaine en cours est déjà remplie.
@@ -90,6 +90,7 @@ export function createDemoState(name?: string): AppState {
       opening: [[], ...Array.from({ length: 5 }, () => [{ start: "11:30", end: "14:30" }, { start: "18:30", end: "22:30" }]), [{ start: "11:30", end: "14:30" }]],
       prepMinutes: 30,
       closeMinutes: 30,
+      convention: "1979", // Hôtels, cafés, restaurants
     },
     ...base,
     plans: { [thisWeek]: generateWeek(base, { seed: 3 }).shifts, [nextWeek]: [] },

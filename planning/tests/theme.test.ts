@@ -43,6 +43,9 @@ describe("Palette terracotta", () => {
     ["slate-500", "slate-50", "texte secondaire sur gris très clair"],
     ["slate-600", "slate-100", "texte sur gris clair"],
     ["#ffffff", "whatsapp", "bouton WhatsApp"],
+    ["#ffffff", "ink", "texte blanc sur le bandeau encre (accueil, barre latérale)"],
+    ["brand-300", "ink", "accroche terracotta sur le bandeau encre"],
+    ["brand-800", "#ffffff", "bouton blanc « Essayer maintenant »"],
   ];
   for (const [fg, bg, label] of pairs) {
     it(`contraste ≥ 4,5:1 : ${label}`, () => {

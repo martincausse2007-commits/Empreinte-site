@@ -39,6 +39,7 @@ export function toRows(s: AppState, est: string): Rows {
       prep_minutes: s.establishment.prepMinutes,
       close_minutes: s.establishment.closeMinutes,
       closed_holidays: s.establishment.closedHolidays ?? [],
+      convention: s.establishment.convention ?? "code",
     },
     rules: {
       establishment_id: est,
@@ -133,6 +134,7 @@ export function fromRows(rows: Rows, opts: { currentWeek?: string; shareToken?: 
       prepMinutes: Number(e.prep_minutes ?? 0),
       closeMinutes: Number(e.close_minutes ?? 0),
       closedHolidays: (e.closed_holidays as AppState["establishment"]["closedHolidays"]) ?? [],
+      convention: String(e.convention ?? "code"),
     },
     rules: {
       restDaysPerWeek: Number(r.rest_days_per_week ?? DEFAULT_RULES.restDaysPerWeek),
