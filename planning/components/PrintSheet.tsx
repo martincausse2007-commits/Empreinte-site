@@ -28,7 +28,7 @@ export function PrintSheet({ state, week, shifts }: { state: AppState; week: str
           </tr>
         </thead>
         <tbody>
-          {state.employees.map((e) => (
+          {state.employees.filter((e) => !e.archived || shifts.some((s) => s.employeeId === e.id)).map((e) => (
             <tr key={e.id}>
               <td className="border border-slate-300 p-1 font-semibold">
                 {e.firstName} {e.lastName}

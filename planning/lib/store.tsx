@@ -31,7 +31,8 @@ function load(): AppState | null {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as AppState;
-    return parsed.version === STATE_VERSION ? parsed : null;
+    if (parsed.version !== STATE_VERSION) return null;
+    return { ...parsed, absences: parsed.absences ?? [] }; // données enregistrées avant l'ajout des absences
   } catch {
     return null;
   }

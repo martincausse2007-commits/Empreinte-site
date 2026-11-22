@@ -35,7 +35,7 @@ export function whatsappText(state: AppState, week: string, shifts: Shift[], mod
     }
   } else {
     const hours = hoursByEmployee(shifts);
-    for (const e of state.employees) {
+    for (const e of state.employees.filter((x) => !x.archived || shifts.some((s) => s.employeeId === x.id))) {
       const mine = shifts.filter((s) => s.employeeId === e.id).sort((a, b) => a.day - b.day || a.start.localeCompare(b.start));
       lines.push(`*${e.firstName}* — ${formatHours(hours[e.id] ?? 0)}`);
       if (!mine.length) lines.push("Repos toute la semaine");

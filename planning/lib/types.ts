@@ -75,7 +75,25 @@ export type Employee = {
   unavailability: Unavailability[];
   /** Week-ends travaillés sur les 4 dernières semaines (pour l'équité). */
   weekendHistory: number;
+  /** Taux horaire brut, facultatif, visible seulement par le gérant (coût estimé). */
+  hourlyRate?: number;
+  /** Salarié supprimé : nom effacé, seul l'historique anonymisé est gardé. */
+  archived?: boolean;
 };
+
+/** Types d'absence. Jamais de motif ni d'information médicale. */
+export type AbsenceType = "cp" | "repos" | "absence" | "arret" | "formation";
+
+export type Absence = {
+  id: string;
+  employeeId: string;
+  type: AbsenceType;
+  start: string; // "2026-12-21" (inclus)
+  end: string; // "2026-12-27" (inclus)
+};
+
+/** Jours fériés : identifiant → ouvert (true) ou fermé (false). */
+export type HolidayId = "jourdelan" | "paques" | "1mai" | "8mai" | "ascension" | "pentecote" | "14juillet" | "15aout" | "toussaint" | "11novembre" | "noel";
 
 export type Shift = {
   id: string;
@@ -107,6 +125,8 @@ export type Establishment = {
   opening: OpeningHours;
   prepMinutes: number; // mise en place avant l'ouverture
   closeMinutes: number; // rangement après la fermeture
+  /** Jours fériés où l'établissement est FERMÉ (les autres sont ouverts). */
+  closedHolidays?: HolidayId[];
 };
 
 export type AppState = {
@@ -120,6 +140,7 @@ export type AppState = {
   /** Planning par semaine, clé = date du lundi "2026-11-16". */
   plans: Record<string, Shift[]>;
   templates: Template[];
+  absences: Absence[];
   currentWeek: string;
   shareToken: string;
 };

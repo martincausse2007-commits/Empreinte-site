@@ -3,9 +3,12 @@
 import { Plus } from "lucide-react";
 import type { AppState, Shift } from "@/lib/types";
 import type { Alert } from "@/lib/engine/check";
-import { coverage, getNeed, hoursByEmployee, serviceActive, shiftCoversService, svTime } from "@/lib/rules";
+import { coverage, getNeed, hoursByEmployee, rulesOf, serviceActive, shiftCoversService, svTime } from "@/lib/rules";
 import { DAYS, DAYS_SHORT, dateOfDay, formatTime } from "@/lib/time";
 import { POST_COLORS } from "@/lib/colors";
+import { ABSENCE_TYPES, absencesForWeek, expectedHours } from "@/lib/absences";
+import { holidaysInWeek, isHolidayClosed } from "@/lib/holidays";
+import { forWeek } from "@/lib/week";
 import { Avatar, Card, cx } from "../ui";
 import { HoursMeter } from "./HoursMeter";
 import { AlertTriangle } from "lucide-react";
@@ -25,7 +28,12 @@ type Props = {
 /** Vue mobile : un jour à la fois, organisé par service puis par poste. */
 export function DayView({ state, week, shifts, alerts, errorShifts, day, onDay, onEdit, onAddSlot }: Props) {
   const dayShifts = shifts.filter((s) => s.day === day);
-  const cov = coverage(state, shifts);
+  const cov = coverage(forWeek(state, week), shifts);
+  const holiday = holidaysInWeek(week).get(day);
+  const absentToday = state.employees.flatMap((e) => {
+    const t = absencesForWeek(state, week).get(e.id)?.get(day);
+    return t ? [{ e, t }] : [];
+  });
   const emp = (id: string) => state.employees.find((e) => e.id === id);
   const hours = hoursByEmployee(shifts);
   const used = new Set<string>();
@@ -56,6 +64,20 @@ export function DayView({ state, week, shifts, alerts, errorShifts, day, onDay, 
       </div>
 
       <div className="space-y-3">
+        {(holiday || absentToday.length > 0) && (
+          <Card className="space-y-1 px-4 py-3 text-sm">
+            {holiday && (
+              <div>
+                <span className="font-semibold">Jour férié</span> · {holiday.label} — {isHolidayClosed(state, holiday.id) ? "établissement fermé" : "ouvert"}
+              </div>
+            )}
+            {absentToday.length > 0 && (
+              <div>
+                <span className="font-semibold">Absents :</span> {absentToday.map(({ e, t }) => `${e.firstName} (${ABSENCE_TYPES[t].label.toLowerCase()})`).join(", ")}
+              </div>
+            )}
+          </Card>
+        )}
         {state.services.filter((sv) => serviceActive(sv, day)).map((sv) => {
           const t = svTime(sv, day);
           const posts = state.posts.filter((p) => getNeed(state.needs, day, sv.id, p.id) > 0 || dayShifts.some((s) => s.postId === p.id && shiftCoversService(s, sv)));
@@ -170,10 +192,10 @@ export function DayView({ state, week, shifts, alerts, errorShifts, day, onDay, 
             <span className="text-xs text-slate-500">{DAYS[day]} sélectionné</span>
           </div>
           <div className="space-y-2.5">
-            {state.employees.map((e) => (
+            {state.employees.filter((e) => !e.archived).map((e) => (
               <div key={e.id} className="flex items-center gap-3">
                 <span className="w-20 truncate text-sm">{e.firstName}</span>
-                <HoursMeter hours={hours[e.id] ?? 0} contract={e.contractHours} compact />
+                <HoursMeter hours={hours[e.id] ?? 0} contract={Math.round(expectedHours(e, absencesForWeek(state, week).get(e.id), rulesOf(state)) * 10) / 10} compact />
               </div>
             ))}
           </div>

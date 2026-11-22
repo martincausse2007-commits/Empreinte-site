@@ -1,17 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { ClipboardList, MoreHorizontal, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { ChevronRight, ClipboardList, Download, MoreHorizontal, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { uid, useApp } from "@/lib/store";
 import { activity } from "@/lib/presets";
 import { rulesOf } from "@/lib/rules";
+import { holidaysOfYear, isHolidayClosed } from "@/lib/holidays";
+import { download, exportAll } from "@/lib/export";
+import { toISODate } from "@/lib/time";
 import { COLOR_ORDER, POST_COLORS } from "@/lib/colors";
 import type { Rules, Service } from "@/lib/types";
 
 const BREAKS = [0, 20, 30, 45, 60, 90];
-import { BackButton, Button, Card, Field, Modal, PageHeader, Stepper, TimeSelect, buttonClass, cx, inputClass, useToast } from "@/components/ui";
+import { BackButton, Button, Card, Field, Modal, PageHeader, Toggle, Stepper, TimeSelect, buttonClass, cx, inputClass, useToast } from "@/components/ui";
 import { Question, RulesFields, Segmented } from "@/components/setup/SetupWizard";
 
 export default function SettingsPage() {
@@ -20,6 +23,10 @@ export default function SettingsPage() {
   const router = useRouter();
   const rules = rulesOf(state);
   const [options, setOptions] = useState<string | null>(null);
+  // Les 11 prochains jours fériés (à partir d'aujourd'hui)
+  const today = toISODate(new Date());
+  const year = new Date().getFullYear();
+  const upcoming = [...holidaysOfYear(year), ...holidaysOfYear(year + 1)].filter((h) => h.date >= today).slice(0, 11);
   const optionsSv = state.services.find((x) => x.id === options);
   const setRules = (r: Partial<Rules>) => update((s) => ({ ...s, rules: { ...rulesOf(s), ...r } }));
 
@@ -52,6 +59,14 @@ export default function SettingsPage() {
           </div>
         </div>
       </Card>
+
+      <Link href="/besoins" className="mb-4 flex min-h-11 items-center justify-between rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-xs hover:bg-slate-50">
+        <span>
+          <span className="block font-semibold">Besoins</span>
+          <span className="block text-sm text-slate-600">Nombre de personnes par jour, créneau et poste</span>
+        </span>
+        <ChevronRight size={18} className="text-slate-500" />
+      </Link>
 
       <Card className="mb-4 px-5 pt-5 pb-2">
         <h2 className="font-semibold">Règles du planning</h2>
@@ -188,6 +203,52 @@ export default function SettingsPage() {
           </div>
         </Modal>
       )}
+
+      <Card className="mb-4 p-5">
+        <h2 className="mb-1 font-semibold">Jours fériés</h2>
+        <p className="mb-4 text-sm text-slate-600">
+          Calculés automatiquement chaque année. Un jour fermé n&apos;a aucun besoin : la génération n&apos;y place personne. Le 1er mai a des règles particulières : vérifiez votre convention collective.
+        </p>
+        <ul className="divide-y divide-slate-100">
+          {upcoming.map((h) => {
+            const closed = isHolidayClosed(state, h.id);
+            return (
+              <li key={h.id} className="flex min-h-11 items-center gap-3 py-1.5">
+                <span className="min-w-0 flex-1 text-sm">
+                  <span className="font-medium">{h.label}</span>
+                  <span className="text-slate-600"> · {new Date(h.date + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span>
+                </span>
+                <span className={cx("text-xs font-medium", closed ? "text-slate-700" : "text-slate-600")}>{closed ? "Fermé" : "Ouvert"}</span>
+                <Toggle
+                  checked={!closed}
+                  label={`${h.label} : ouvert`}
+                  onChange={(open) =>
+                    update((s) => {
+                      const cur = new Set(s.establishment.closedHolidays ?? []);
+                      if (open) cur.delete(h.id);
+                      else cur.add(h.id);
+                      return { ...s, establishment: { ...s.establishment, closedHolidays: [...cur] } };
+                    })
+                  }
+                />
+              </li>
+            );
+          })}
+        </ul>
+      </Card>
+
+      <Card className="mb-4 p-5">
+        <h2 className="mb-1 font-semibold">Vos données</h2>
+        <p className="mb-4 text-sm text-slate-600">Téléchargez l&apos;intégralité des données de l&apos;établissement (équipe, plannings, absences, réglages) dans un fichier lisible.</p>
+        <Button
+          onClick={() => {
+            download(`quinzo-export-${new Date().toISOString().slice(0, 10)}.json`, exportAll(state), "application/json");
+            toast("Export téléchargé");
+          }}
+        >
+          <Download size={16} /> Exporter toutes les données
+        </Button>
+      </Card>
 
       <Card className="p-5">
         <h2 className="mb-1 font-semibold">Démo</h2>

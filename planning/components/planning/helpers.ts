@@ -27,7 +27,10 @@ export function fullName(e: Employee) {
 }
 
 /** Équipe triée par poste principal, dans l'ordre des postes. */
-export function groupByPost(state: AppState) {
+export function groupByPost(state: AppState, shifts: Shift[] = []) {
+  // Anciens salariés (anonymisés) : affichés seulement s'ils ont des créneaux cette semaine
+  const visible = state.employees.filter((e) => !e.archived || shifts.some((s) => s.employeeId === e.id));
+  state = { ...state, employees: visible };
   return state.posts
     .map((p) => ({ post: p, employees: state.employees.filter((e) => e.postIds[0] === p.id) }))
     .filter((g) => g.employees.length > 0)

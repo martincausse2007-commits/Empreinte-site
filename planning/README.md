@@ -21,6 +21,10 @@ Puis ouvrir http://localhost:3000
 - `lib/engine/check.ts` : LE module de vérification (règles interdites en rouge, préférences en ambre), utilisé partout
 - `lib/generate.ts` : génération automatique de la semaine et propositions de renforts
 - `lib/rules.ts` : calcul des heures et de la couverture
+- `lib/absences.ts`, `lib/holidays.ts`, `lib/week.ts` : absences, jours fériés (calculés), contexte d'une semaine
+- `lib/replace.ts` : remplaçants possibles, classés
+- `lib/counters.ts`, `lib/export.ts` : compteurs semaine/mois, exports CSV, Excel et JSON
+- `lib/employees.ts` : suppression d'un salarié avec anonymisation de l'historique
 - `lib/demo-data.ts` : les fausses données
 - `lib/history.ts` : bouton retour du téléphone, Échap, flèche « ← Retour »
 - `app/globals.css` : le thème (couleurs terracotta) — aucune couleur ailleurs

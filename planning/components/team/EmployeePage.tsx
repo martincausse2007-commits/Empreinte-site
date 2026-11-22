@@ -7,6 +7,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { uid, useApp } from "@/lib/store";
+import { deleteEmployee } from "@/lib/employees";
+import { ABSENCE_TYPES, absenceDays } from "@/lib/absences";
+import type { AbsenceType } from "@/lib/types";
+import { toISODate } from "@/lib/time";
+import { CalendarOff } from "lucide-react";
 import type { Employee } from "@/lib/types";
 import { isUnavailable } from "@/lib/rules";
 import { DAYS } from "@/lib/time";
@@ -85,12 +90,9 @@ function EmployeeForm({ initial, isNew }: { initial: Employee; isNew: boolean })
   }
 
   function remove() {
-    update((s) => ({
-      ...s,
-      employees: s.employees.filter((x) => x.id !== e.id),
-      plans: Object.fromEntries(Object.entries(s.plans).map(([w, list]) => [w, list.filter((x) => x.employeeId !== e.id)])),
-    }));
-    toast("Employé supprimé");
+    // Historique conservé mais anonymisé (plus de nom, ni taux, ni disponibilités, ni absences)
+    update((s) => deleteEmployee(s, e.id), { record: false });
+    toast("Salarié supprimé, historique anonymisé");
     router.replace("/equipe");
   }
 
@@ -181,6 +183,27 @@ function EmployeeForm({ initial, isNew }: { initial: Employee; isNew: boolean })
           </div>
         </div>
 
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3">
+          <div>
+            <label htmlFor="hourly-rate" className="text-sm font-medium">Taux horaire brut</label>
+            <div className="text-xs text-slate-600">Facultatif · sert au coût estimé · visible seulement par vous</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id="hourly-rate"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step={0.01}
+              placeholder="—"
+              className={cx(inputClass, "w-28 text-right")}
+              value={e.hourlyRate ?? ""}
+              onChange={(x) => set({ hourlyRate: x.target.value === "" ? undefined : Math.max(0, Number(x.target.value)) })}
+            />
+            <span className="text-sm text-slate-600">€/h</span>
+          </div>
+        </div>
+
         <div className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
           <div>
             <div className="text-sm font-medium">Week-ends travaillés</div>
@@ -190,6 +213,8 @@ function EmployeeForm({ initial, isNew }: { initial: Employee; isNew: boolean })
         </div>
       </div>
       </Card>
+
+      {!isNew && <AbsencesCard employeeId={initial.id} firstName={initial.firstName} />}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {!isNew && (
@@ -222,8 +247,88 @@ function EmployeeForm({ initial, isNew }: { initial: Employee; isNew: boolean })
           </>
         }
       >
-        <p className="text-sm text-slate-600">Ses créneaux seront retirés de tous les plannings. Cette action ne peut pas être annulée.</p>
+        <p className="text-sm text-slate-600">
+          Ses créneaux seront retirés à partir de cette semaine. Les semaines passées restent dans l&apos;historique, mais anonymisées (« Ancien salarié »), sans nom, taux horaire, disponibilités ni absences. Cette action ne peut pas être annulée.
+        </p>
       </Modal>
     </div>
+  );
+}
+
+const fmtDate = (iso: string) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+};
+
+/** Congés, repos demandés, arrêts… Type et dates uniquement : jamais de motif. */
+function AbsencesCard({ employeeId, firstName }: { employeeId: string; firstName: string }) {
+  const { state, update } = useApp();
+  const toast = useToast();
+  const today = toISODate(new Date());
+  const [type, setType] = useState<AbsenceType>("cp");
+  const [start, setStart] = useState(today);
+  const [end, setEnd] = useState(today);
+  const list = (state.absences ?? []).filter((a) => a.employeeId === employeeId).sort((a, b) => a.start.localeCompare(b.start));
+  const valid = start && end && end >= start;
+
+  return (
+    <Card className="mt-4 p-5">
+      <h2 className="flex items-center gap-2 font-semibold">
+        <CalendarOff size={18} className="text-brand-700" /> Absences
+      </h2>
+      <p className="mt-1 mb-4 text-sm text-slate-600">
+        Congés, repos demandés, arrêts, formations. Elles bloquent la génération du planning. N&apos;indiquez jamais de motif ni d&apos;information médicale.
+      </p>
+      {list.length > 0 && (
+        <ul className="mb-4 divide-y divide-slate-100 rounded-xl border border-slate-200">
+          {list.map((a) => (
+            <li key={a.id} className="flex min-h-11 items-center gap-3 px-3 py-2 text-sm">
+              <span className="min-w-0 flex-1">
+                <b className="font-semibold">{ABSENCE_TYPES[a.type].label}</b> · {a.start === a.end ? fmtDate(a.start) : `du ${fmtDate(a.start)} au ${fmtDate(a.end)}`}
+                <span className="text-slate-600"> ({absenceDays(a)} j)</span>
+              </span>
+              <button
+                type="button"
+                aria-label="Supprimer cette absence"
+                className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 sm:h-9 sm:w-9"
+                onClick={() => {
+                  update((s) => ({ ...s, absences: s.absences.filter((x) => x.id !== a.id) }));
+                  toast("Absence supprimée");
+                }}
+              >
+                <Trash2 size={16} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+        <Field label="Type">
+          <select className={inputClass} value={type} onChange={(x) => setType(x.target.value as AbsenceType)}>
+            {(Object.keys(ABSENCE_TYPES) as AbsenceType[]).map((t) => (
+              <option key={t} value={t}>
+                {ABSENCE_TYPES[t].label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Du">
+          <input type="date" className={inputClass} value={start} onChange={(x) => (setStart(x.target.value), x.target.value > end && setEnd(x.target.value))} />
+        </Field>
+        <Field label="Au (inclus)">
+          <input type="date" className={inputClass} value={end} min={start} onChange={(x) => setEnd(x.target.value)} />
+        </Field>
+        <Button
+          variant="primary"
+          disabled={!valid}
+          onClick={() => {
+            update((s) => ({ ...s, absences: [...(s.absences ?? []), { id: uid("a"), employeeId, type, start, end }] }));
+            toast(`${ABSENCE_TYPES[type].label} ajouté pour ${firstName}`);
+          }}
+        >
+          Ajouter
+        </Button>
+      </div>
+    </Card>
   );
 }

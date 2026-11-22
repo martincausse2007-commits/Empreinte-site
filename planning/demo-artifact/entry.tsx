@@ -13,6 +13,7 @@ import NeedsPage from "@/app/(app)/besoins/page";
 import TemplatesPage from "@/app/(app)/modeles/page";
 import SharePage from "@/app/(app)/partage/page";
 import SettingsPage from "@/app/(app)/reglages/page";
+import HoursPage from "@/app/(app)/heures/page";
 import { PublicPlanning } from "@/components/PublicPlanning";
 import { SetupWizard } from "@/components/setup/SetupWizard";
 import { EmployeePage } from "@/components/team/EmployeePage";
@@ -25,6 +26,7 @@ const APP: Record<string, () => React.ReactNode> = {
   "/modeles": () => <TemplatesPage />,
   "/partage": () => <SharePage />,
   "/reglages": () => <SettingsPage />,
+  "/heures": () => <HoursPage />,
 };
 
 function Router() {

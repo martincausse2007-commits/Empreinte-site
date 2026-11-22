@@ -4,6 +4,7 @@ import { createDemoState } from "@/lib/demo-data";
 import { checkEmployee, checkWeek, type IssueKind } from "@/lib/engine/check";
 import { applyReinforcements, generateWeek, suggestReinforcements } from "@/lib/generate";
 import { hoursByEmployee } from "@/lib/rules";
+import { absencesForWeek, expectedHours } from "@/lib/absences";
 import { ACTIVITIES } from "@/lib/presets";
 import { draftFor, exampleTeam, stateFromDraft } from "@/lib/setup";
 import type { AppState, Employee, Rules, Shift } from "@/lib/types";
@@ -141,16 +142,21 @@ describe("Générateur", () => {
     expect(checkWeek(demo, res.shifts).filter((i) => i.kind === "consecutiveRest")).toEqual([]);
   });
 
+  const absent = absencesForWeek(demo, demo.currentWeek);
+  const target = (id: string) => expectedHours(demo.employees.find((e) => e.id === id)!, absent.get(id), demo.rules);
+
   it("vise les contrats : Léa, Inès et Karim atteignent leurs heures grâce aux renforts", () => {
     const h = hoursByEmployee(withReinf);
     const by = (name: string) => demo.employees.find((e) => e.firstName === name)!;
-    for (const name of ["Léa", "Inès", "Karim"]) expect(h[by(name).id]).toBeCloseTo(by(name).contractHours, 1);
+    // Léa a 2 jours de congés payés dans la démo : 35 h − 2 × 7 h = 21 h à planifier
+    expect(target(by("Léa").id)).toBeCloseTo(21, 1);
+    for (const name of ["Léa", "Inès", "Karim"]) expect(h[by(name).id]).toBeCloseTo(target(by(name).id), 1);
     expect(checkWeek(demo, withReinf).filter((i) => i.severity === "error")).toEqual([]);
   });
 
   it("réduit fortement les heures payées non planifiées (≈ 54 h avant correction)", () => {
     const h = hoursByEmployee(withReinf);
-    const missing = demo.employees.reduce((a, e) => a + Math.max(0, e.contractHours - (h[e.id] ?? 0)), 0);
+    const missing = demo.employees.reduce((a, e) => a + Math.max(0, target(e.id) - (h[e.id] ?? 0)), 0);
     expect(missing).toBeLessThan(16);
   });
 

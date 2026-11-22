@@ -45,7 +45,7 @@ export function PublicPlanning({ token }: { token: string }) {
 
       <select value={me} onChange={(e) => setMe(e.target.value)} className="mb-5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-[15px]">
         <option value="">Toute l&apos;équipe</option>
-        {state.employees.map((e) => (
+        {state.employees.filter((e) => !e.archived).map((e) => (
           <option key={e.id} value={e.id}>
             Je suis {e.firstName} {e.lastName}
           </option>

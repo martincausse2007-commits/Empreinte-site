@@ -173,6 +173,7 @@ export function stateFromDraft(d: SetupDraft): AppState {
     needs,
     plans: { [nextWeek]: [] },
     templates: [],
+    absences: [],
     currentWeek: nextWeek,
     shareToken: "e-" + Math.random().toString(36).slice(2, 10),
   };

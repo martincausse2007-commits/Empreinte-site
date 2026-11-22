@@ -13,7 +13,9 @@
 // doit les adapter à sa convention collective.
 // ============================================================================
 
-import type { AppState, Employee, Rules, Shift } from "../types";
+import type { AbsenceType, AppState, Employee, Rules, Shift } from "../types";
+import { ABSENCE_TYPES, absencesForWeek, expectedHours } from "../absences";
+import { forWeek } from "../week";
 import { DAYS, addWeeks, formatHours } from "../time";
 import { absRange, coverage, dayStats, isUnavailable, rulesOf, servicesOfShift, shiftHours } from "../rules";
 
@@ -44,7 +46,8 @@ export type IssueKind =
   | "contractUnder"
   | "offPost"
   | "weekend"
-  | "uncovered";
+  | "uncovered"
+  | "absence";
 
 export type Severity = "error" | "warning";
 
@@ -77,6 +80,7 @@ export const ISSUE_LABELS: Record<IssueKind, string> = {
   offPost: "Hors poste",
   weekend: "Week-ends",
   uncovered: "Poste non couvert",
+  absence: "Absence",
 };
 
 /** Règles « interdites » : le générateur ne les enfreint jamais. */
@@ -92,6 +96,7 @@ export const HARD_KINDS = new Set<IssueKind>([
   "split",
   "pause",
   "contractOver",
+  "absence",
 ]);
 
 type ShiftLike = Pick<Shift, "id" | "day" | "start" | "end" | "postId" | "breakMinutes">;
@@ -107,7 +112,7 @@ export function checkEmployee(
   state: Pick<AppState, "rules" | "services">,
   e: Employee,
   shifts: ShiftLike[],
-  opts: { prev?: ShiftLike[]; hardOnly?: boolean } = {},
+  opts: { prev?: ShiftLike[]; hardOnly?: boolean; absent?: Map<number, AbsenceType> } = {},
 ): Issue[] {
   const rules: Rules = rulesOf(state);
   const out: Issue[] = [];
@@ -115,31 +120,34 @@ export function checkEmployee(
   const add = (i: Omit<Issue, "employeeId">) => out.push({ ...i, employeeId: e.id });
   const mine = [...shifts].sort((a, b) => absRange(a)[0] - absRange(b)[0]);
   const total = mine.reduce((a, s) => a + shiftHours(s), 0);
+  // Heures à planifier : le contrat, moins les jours d'absence décomptés (congés, arrêt…)
+  const target = expectedHours(e, opts.absent, rules);
+  const targetLabel = target < e.contractHours - 0.01 ? `${formatHours(target)} à planifier (contrat ${formatHours(e.contractHours)}, absences déduites)` : `${formatHours(e.contractHours)} au contrat`;
 
   // --- Heures de la semaine -------------------------------------------------
   if (mine.length) {
-    if (total > e.contractHours + rules.overtimeHours + 0.01) {
+    if (total > target + rules.overtimeHours + 0.01) {
       add({
         id: `contractOver-${e.id}`,
         kind: "contractOver",
         severity: "error",
         title: `${name} dépasse ses heures`,
-        detail: `${formatHours(total)} planifiées pour ${formatHours(e.contractHours)} au contrat${rules.overtimeHours ? ` (+${rules.overtimeHours} h autorisées)` : ""}.`,
+        detail: `${formatHours(total)} planifiées pour ${targetLabel}${rules.overtimeHours ? ` (+${rules.overtimeHours} h autorisées)` : ""}.`,
       });
-    } else if (!opts.hardOnly && total > e.contractHours + 0.01) {
-      add({ id: `overtime-${e.id}`, kind: "overtime", severity: "warning", title: `${name} fait ${formatHours(total - e.contractHours)} sup`, detail: `${formatHours(total)} planifiées pour ${formatHours(e.contractHours)} au contrat (dans la limite autorisée).` });
+    } else if (!opts.hardOnly && total > target + 0.01) {
+      add({ id: `overtime-${e.id}`, kind: "overtime", severity: "warning", title: `${name} fait ${formatHours(total - target)} sup`, detail: `${formatHours(total)} planifiées pour ${targetLabel} (dans la limite autorisée).` });
     }
     if (total > LEGAL.maxWeekHours + 0.01) {
       add({ id: `week48-${e.id}`, kind: "weekHours", severity: "error", title: `${name} : ${formatHours(total)} dans la semaine`, detail: `Maximum légal : ${LEGAL.maxWeekHours} h par semaine.` });
     }
   }
-  if (!opts.hardOnly && e.contractHours > 0 && total < e.contractHours - 0.5) {
+  if (!opts.hardOnly && target > 0 && total < target - 0.5) {
     add({
       id: `contractUnder-${e.id}`,
       kind: "contractUnder",
       severity: "warning",
-      title: `${name} : ${formatHours(e.contractHours - total)} non planifiées`,
-      detail: `${formatHours(total)} planifiées pour ${formatHours(e.contractHours)} au contrat : ces heures sont payées.`,
+      title: `${name} : ${formatHours(target - total)} non planifiées`,
+      detail: `${formatHours(total)} planifiées pour ${targetLabel} : ces heures sont payées.`,
     });
   }
   if (!mine.length) return out;
@@ -228,6 +236,10 @@ export function checkEmployee(
 
   // --- Disponibilités et postes ----------------------------------------------------
   for (const s of mine) {
+    const away = opts.absent?.get(s.day);
+    if (away) {
+      add({ id: `absence-${s.id}`, kind: "absence", severity: "error", title: `${name} est absent·e (${ABSENCE_TYPES[away].label.toLowerCase()})`, detail: `${DAYS[s.day]} : un créneau est planifié pendant une absence.`, day: s.day, shiftIds: [s.id] });
+    }
     const touched = servicesOfShift(s, state.services);
     if (isUnavailable(e, s.day) || touched.some((sv) => isUnavailable(e, s.day, sv.id))) {
       add({ id: `unavailable-${s.id}`, kind: "unavailable", severity: "error", title: `${name} est indisponible`, detail: `${DAYS[s.day]}${touched.length ? " " + touched.map((t) => t.name.toLowerCase()).join(" / ") : ""} : un créneau est planifié sur une indisponibilité.`, day: s.day, shiftIds: [s.id] });
@@ -247,13 +259,16 @@ export function checkEmployee(
 }
 
 /** Vérifie toute la semaine : chaque personne, puis la couverture des besoins. */
-export function checkWeek(state: AppState, shifts: Shift[], week = state.currentWeek): Issue[] {
+export function checkWeek(state0: AppState, shifts: Shift[], week = state0.currentWeek): Issue[] {
+  const state = forWeek(state0, week); // jours fériés fermés : rien à couvrir
   const prevWeek = state.plans?.[addWeeks(week, -1)] ?? [];
+  const absences = absencesForWeek(state, week);
   const issues: Issue[] = [];
   for (const e of state.employees) {
     const mine = shifts.filter((s) => s.employeeId === e.id);
+    if (e.archived) continue; // salarié supprimé : historique anonymisé, plus vérifié
     const prev = prevWeek.filter((s) => s.employeeId === e.id && s.day === 6);
-    issues.push(...checkEmployee(state, e, mine, { prev }));
+    issues.push(...checkEmployee(state, e, mine, { prev, absent: absences.get(e.id) }));
   }
   const postName = (id: string) => state.posts.find((p) => p.id === id)?.name ?? "Poste";
   const svName = (id: string) => state.services.find((s) => s.id === id)?.name.toLowerCase() ?? "";

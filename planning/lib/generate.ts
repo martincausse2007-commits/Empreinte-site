@@ -15,9 +15,12 @@ import type { AppState, Employee, Service, Shift } from "./types";
 import { absRange, getNeed, isUnavailable, rulesOf, serviceActive, shiftHours, svTime } from "./rules";
 import { checkEmployee, type Issue } from "./engine/check";
 import { DAYS, addWeeks } from "./time";
+import { absencesForWeek, expectedHours } from "./absences";
+import { needsForWeek } from "./week";
+import type { AbsenceType } from "./types";
 
 type Slot = { day: number; service: Service; postId: string; start: string; end: string; breakMinutes?: number };
-type GenState = Pick<AppState, "employees" | "services" | "posts" | "needs" | "rules"> & Partial<Pick<AppState, "plans" | "currentWeek">>;
+type GenState = Pick<AppState, "employees" | "services" | "posts" | "needs" | "rules"> & Partial<Pick<AppState, "plans" | "currentWeek" | "absences" | "establishment">>;
 
 let counter = 0;
 const newId = () => `g${Date.now().toString(36)}${(counter++).toString(36)}`;
@@ -44,9 +47,21 @@ function prevOf(state: GenState, e: Employee): Shift[] {
   return (state.plans[addWeeks(state.currentWeek, -1)] ?? []).filter((s) => s.employeeId === e.id && s.day === 6);
 }
 
+/** Absences de la semaine générée (congés, arrêt…) : salarié → jour → type. */
+function absentOf(state: GenState, e: Employee): Map<number, AbsenceType> | undefined {
+  if (!state.currentWeek || !state.absences?.length) return undefined;
+  return absencesForWeek({ absences: state.absences }, state.currentWeek).get(e.id);
+}
+
+/** Besoins effectifs : rien les jours fériés où l'établissement est fermé. */
+function weekState(state: GenState): GenState {
+  if (!state.currentWeek || !state.establishment) return state;
+  return { ...state, needs: needsForWeek({ needs: state.needs, establishment: state.establishment }, state.currentWeek) };
+}
+
 /** Les ids des problèmes « interdits » d'une personne. */
 function hardIds(state: GenState, e: Employee, mine: Shift[]): Set<string> {
-  return new Set(checkEmployee(state, e, mine, { prev: prevOf(state, e), hardOnly: true }).map((i) => i.id));
+  return new Set(checkEmployee(state, e, mine, { prev: prevOf(state, e), hardOnly: true, absent: absentOf(state, e) }).map((i) => i.id));
 }
 
 /** Choisit pour chacun deux jours de repos à la suite (si demandé). */
@@ -72,8 +87,8 @@ function planRestDays(state: GenState, slots: Slot[], seed: number): Map<string,
       const pair: [number, number] = [d, (d + 1) % 7];
       let cost = 0;
       for (const x of pair) {
-        if (isUnavailable(e, x)) {
-          cost -= 2; // jour déjà non travaillé : idéal pour le repos
+        if (isUnavailable(e, x) || absentOf(state, e)?.has(x)) {
+          cost -= 2; // jour déjà non travaillé (indisponible ou absent) : idéal pour le repos
           continue;
         }
         const already = offCount.get(`${post}|${x}`) ?? 0;
@@ -93,7 +108,8 @@ function planRestDays(state: GenState, slots: Slot[], seed: number): Map<string,
   return rest;
 }
 
-export function generateWeek(state: GenState, opts: { seed?: number } = {}): GenerateResult {
+export function generateWeek(state0: GenState, opts: { seed?: number } = {}): GenerateResult {
+  const state = { ...weekState(state0), employees: state0.employees.filter((e) => !e.archived) };
   const seed = opts.seed ?? 0;
   const rules = rulesOf(state);
   const slots = slotsOf(state);
@@ -217,17 +233,19 @@ const MIN_REINFORCEMENT_HOURS = 2;
  *  2. pour un petit reste (moins de 2 h), allonger un de ses créneaux.
  * Jamais de règle interdite, jamais de nouvelle alerte de repos à la suite.
  */
-export function suggestReinforcements(state: GenState, shifts: Shift[]): Reinforcement[] {
+export function suggestReinforcements(state0: GenState, shifts: Shift[]): Reinforcement[] {
+  const state = { ...weekState(state0), employees: state0.employees.filter((e) => !e.archived) };
   const out: Reinforcement[] = [];
   let all = [...shifts];
   const mineOf = (e: Employee) => all.filter((s) => s.employeeId === e.id);
-  const missingOf = (e: Employee) => e.contractHours - mineOf(e).reduce((a, s) => a + shiftHours(s), 0);
+  const missingOf = (e: Employee) => expectedHours(e, absentOf(state, e), rulesOf(state)) - mineOf(e).reduce((a, s) => a + shiftHours(s), 0);
   const postName = (id: string) => state.posts.find((p) => p.id === id)?.name ?? "";
 
   /** Le changement est-il acceptable pour cette personne ? */
   function acceptable(e: Employee, next: Shift[]): boolean {
-    const before = checkEmployee(state, e, mineOf(e), { prev: prevOf(state, e) });
-    const after = checkEmployee(state, e, next, { prev: prevOf(state, e) });
+    const opt = { prev: prevOf(state, e), absent: absentOf(state, e) };
+    const before = checkEmployee(state, e, mineOf(e), opt);
+    const after = checkEmployee(state, e, next, opt);
     const hard = new Set(before.filter((i) => i.severity === "error").map((i) => i.id));
     if (after.some((i) => i.severity === "error" && !hard.has(i.id))) return false;
     const consecutive = before.some((i) => i.kind === "consecutiveRest");

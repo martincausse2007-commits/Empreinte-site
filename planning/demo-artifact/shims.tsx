@@ -16,6 +16,7 @@ const ROUTES: Record<string, string> = {
   modeles: "/modeles",
   partage: "/partage",
   reglages: "/reglages",
+  heures: "/heures",
   "lien-equipe": "/p/demo",
 };
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, LayoutTemplate, Settings, Share2, SlidersHorizontal, Users } from "lucide-react";
+import { CalendarDays, Clock, LayoutTemplate, Settings, Share2, SlidersHorizontal, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { Logo } from "../Logo";
 import { cx } from "../ui";
@@ -10,12 +10,14 @@ import { useApp } from "@/lib/store";
 import { activity } from "@/lib/presets";
 
 const NAV = [
-  { href: "/planning", label: "Planning", icon: CalendarDays },
-  { href: "/equipe", label: "Équipe", icon: Users },
-  { href: "/besoins", label: "Besoins", icon: SlidersHorizontal },
-  { href: "/modeles", label: "Modèles", icon: LayoutTemplate },
-  { href: "/partage", label: "Partage", icon: Share2 },
+  { href: "/planning", label: "Planning", icon: CalendarDays, mobile: true },
+  { href: "/equipe", label: "Équipe", icon: Users, mobile: true },
+  { href: "/heures", label: "Heures", icon: Clock, mobile: true },
+  { href: "/besoins", label: "Besoins", icon: SlidersHorizontal, mobile: false },
+  { href: "/modeles", label: "Modèles", icon: LayoutTemplate, mobile: true },
+  { href: "/partage", label: "Partage", icon: Share2, mobile: true },
 ];
+// Sur téléphone, 5 onglets maximum : « Besoins » est accessible depuis Réglages.
 
 export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
@@ -31,7 +33,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         <div className="mx-3 mb-3 rounded-xl border border-slate-200/80 bg-slate-50 px-3 py-2.5">
           <div className="truncate text-sm font-medium">{ready ? state.establishment.name : "…"}</div>
-          <div className="text-xs text-slate-500">{activity(state.establishment.type).label} · {state.employees.length} personnes</div>
+          <div className="text-xs text-slate-500">{activity(state.establishment.type).label} · {state.employees.filter((e) => !e.archived).length} personnes</div>
         </div>
         <nav className="flex flex-1 flex-col gap-0.5 px-3">
           {NAV.map(({ href, label, icon: Icon }) => (
@@ -74,7 +76,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Barre d'onglets (mobile) */}
       <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-slate-200/80 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-        {NAV.map(({ href, label, icon: Icon }) => (
+        {NAV.filter((n) => n.mobile).map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}

@@ -14,8 +14,11 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { Plus } from "lucide-react";
-import type { AppState, Employee, Shift } from "@/lib/types";
-import { coverage, hoursByEmployee, isUnavailable, serviceActive } from "@/lib/rules";
+import type { AbsenceType, AppState, Employee, Shift } from "@/lib/types";
+import { ABSENCE_TYPES, absencesForWeek, expectedHours } from "@/lib/absences";
+import { holidaysInWeek, isHolidayClosed } from "@/lib/holidays";
+import { forWeek } from "@/lib/week";
+import { coverage, hoursByEmployee, isUnavailable, rulesOf, serviceActive } from "@/lib/rules";
 import { DAYS_SHORT, formatDayDate } from "@/lib/time";
 import { POST_COLORS } from "@/lib/colors";
 import { Avatar, cx } from "../ui";
@@ -40,7 +43,9 @@ export function WeekGrid({ state, week, shifts, errorShifts, onEdit, onAdd, onMo
     useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
   );
   const hours = hoursByEmployee(shifts);
-  const cov = coverage(state, shifts);
+  const cov = coverage(forWeek(state, week), shifts);
+  const absent = absencesForWeek(state, week);
+  const fer = holidaysInWeek(week);
   const active = shifts.find((s) => s.id === activeId);
   const postOf = (id: string) => state.posts.find((p) => p.id === id);
 
@@ -73,6 +78,11 @@ export function WeekGrid({ state, week, shifts, errorShifts, onEdit, onAdd, onMo
                   <div className="text-[13px] font-semibold">
                     {d} <span className="font-normal text-slate-500">{formatDayDate(week, day)}</span>
                   </div>
+                  {fer.has(day) && (
+                    <div className="mt-0.5 truncate text-[11px] font-medium text-brand-800" title={fer.get(day)!.label}>
+                      Férié{isHolidayClosed(state, fer.get(day)!.id) ? " · fermé" : ""}
+                    </div>
+                  )}
                   <div className="mt-1 text-[11px]">
                     {needed === 0 ? (
                       <span className="text-slate-500">Fermé</span>
@@ -87,7 +97,7 @@ export function WeekGrid({ state, week, shifts, errorShifts, onEdit, onAdd, onMo
             })}
           </div>
 
-          {groupByPost(state).map(({ post, employees }) => (
+          {groupByPost(state, shifts).map(({ post, employees }) => (
             <div key={post.id}>
               <div className={cx(cols, "border-b border-slate-100 bg-slate-50/70")}>
                 <div className="sticky left-0 flex items-center gap-2 bg-slate-50 px-3 py-1.5 text-[11px] font-semibold tracking-wide text-slate-500 uppercase sm:px-4">
@@ -101,6 +111,7 @@ export function WeekGrid({ state, week, shifts, errorShifts, onEdit, onAdd, onMo
                   key={e.id}
                   cols={cols}
                   employee={e}
+                  absent={absent.get(e.id)}
                   state={state}
                   shifts={shifts.filter((s) => s.employeeId === e.id)}
                   hours={hours[e.id] ?? 0}
@@ -151,6 +162,7 @@ export function WeekGrid({ state, week, shifts, errorShifts, onEdit, onAdd, onMo
 
 function Row({
   cols,
+  absent,
   employee: e,
   state,
   shifts,
@@ -162,6 +174,7 @@ function Row({
   postOf,
 }: {
   cols: string;
+  absent?: Map<number, AbsenceType>;
   employee: Employee;
   state: AppState;
   shifts: Shift[];
@@ -180,12 +193,13 @@ function Row({
           <div className="truncate text-[13px] font-medium">
             {e.firstName} <span className="hidden sm:inline">{e.lastName}</span>
           </div>
-          <HoursMeter hours={hours} contract={e.contractHours} compact />
+          <HoursMeter hours={hours} contract={Math.round(expectedHours(e, absent, rulesOf(state)) * 10) / 10} compact />
         </div>
       </div>
       {Array.from({ length: 7 }, (_, day) => (
         <Cell
           key={day}
+          absence={absent?.get(day)}
           employee={e}
           day={day}
           state={state}
@@ -202,6 +216,7 @@ function Row({
 }
 
 function Cell({
+  absence,
   employee: e,
   day,
   state,
@@ -212,6 +227,7 @@ function Cell({
   onAdd,
   postOf,
 }: {
+  absence?: AbsenceType;
   employee: Employee;
   day: number;
   state: AppState;
@@ -223,7 +239,7 @@ function Cell({
   postOf: (id: string) => AppState["posts"][number] | undefined;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `cell|${e.id}|${day}` });
-  const allDay = isUnavailable(e, day);
+  const allDay = isUnavailable(e, day) || !!absence;
   const partial = state.services.filter((sv) => !allDay && serviceActive(sv, day) && isUnavailable(e, day, sv.id));
 
   return (
@@ -255,7 +271,7 @@ function Cell({
       </div>
       {shifts.length === 0 && (allDay || partial.length > 0) && (
         <div className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[11px] text-slate-500">
-          {allDay ? "Indisponible" : `Indispo ${partial.map((p) => p.name.toLowerCase()).join(", ")}`}
+          {absence ? <span className="font-semibold text-slate-700">{ABSENCE_TYPES[absence].label}</span> : allDay ? "Indisponible" : `Indispo ${partial.map((p) => p.name.toLowerCase()).join(", ")}`}
         </div>
       )}
       {shifts.length === 0 && !allDay && partial.length === 0 && (

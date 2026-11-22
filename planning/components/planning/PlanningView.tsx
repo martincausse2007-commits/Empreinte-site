@@ -9,9 +9,9 @@ import { serviceActive, svTime } from "@/lib/rules";
 import { computeAlerts } from "@/lib/engine/check";
 import { applyReinforcements, generateWeek, suggestReinforcements } from "@/lib/generate";
 import type { Issue } from "@/lib/engine/check";
-import type { Template } from "@/lib/types";
+import type { AbsenceType, Template } from "@/lib/types";
 import { applyTemplate, copyWeek } from "@/lib/templates";
-import { addWeeks, formatHours, formatTime, formatWeekRange, isoWeekNumber } from "@/lib/time";
+import { addWeeks, dateOfDay, formatHours, formatTime, formatWeekRange, isoWeekNumber, toISODate } from "@/lib/time";
 import { shiftHours } from "@/lib/rules";
 import { Button, Card, Modal, buttonClass, cx, useConfirm, useToast } from "../ui";
 import { useRouter } from "next/navigation";
@@ -162,6 +162,19 @@ export function PlanningView() {
   function save(s: Shift) {
     setShifts(week, (list) => (list.some((x) => x.id === s.id) ? list.map((x) => (x.id === s.id ? s : x)) : [...list, s]));
     setEditing(null);
+  }
+
+  /** Remplacement : la place passe à quelqu'un d'autre, l'absence est notée si demandé. */
+  function replace(shift: Shift, employeeId: string, absence?: AbsenceType) {
+    const from = state.employees.find((e) => e.id === shift.employeeId);
+    const to = state.employees.find((e) => e.id === employeeId);
+    if (absence) {
+      const date = toISODate(dateOfDay(week, shift.day));
+      update((s) => ({ ...s, absences: [...s.absences, { id: uid("a"), employeeId: shift.employeeId, type: absence, start: date, end: date }] }), { record: false });
+    }
+    setShifts(week, (list) => list.map((x) => (x.id === shift.id ? { ...x, employeeId } : x)));
+    setEditing(null);
+    toast(`${to?.firstName} remplace ${from?.firstName}`);
   }
 
   function remove(id: string) {
@@ -353,6 +366,8 @@ export function PlanningView() {
           onClose={() => setEditing(null)}
           onSave={save}
           onDelete={remove}
+          week={week}
+          onReplace={(employeeId, absence) => replace(editing.shift, employeeId, absence)}
         />
       )}
 

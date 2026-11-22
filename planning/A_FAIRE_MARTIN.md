@@ -5,7 +5,13 @@ Je le mets à jour à chaque lot. Coche les cases au fur et à mesure.
 
 ---
 
-## Maintenant (Lot 3 terminé)
+## Maintenant (Lot 4 terminé)
+
+- [ ] **Tester sur ton téléphone** : absences, remplacement, page Heures (voir le message dans la conversation).
+- [ ] **Envoyer un export Excel à ton comptable** (depuis ton ordinateur, quand le site sera en ligne) pour lui demander si les colonnes lui conviennent. Dans la version de test claude.ai, les téléchargements sont bloqués : c'est normal.
+- [ ] **Choisir les jours fériés où tu es fermé** (Réglages → Jours fériés).
+
+## Lot 3 (fait)
 
 - [ ] **Tester le nouveau moteur** sur la version de test (même lien, recharge la page) — voir le message dans la conversation.
 - [ ] **Vérifier tes règles** (Réglages → Règles du planning) avec ta convention collective : 10 h par jour, 11 h de repos, etc. Ce sont des réglages, pas un avis juridique.

@@ -19,7 +19,7 @@ export default function TeamPage() {
     <div>
       <PageHeader
         title="Équipe"
-        subtitle={`${state.employees.length} personnes · ${state.employees.reduce((a, e) => a + e.contractHours, 0)} h de contrat par semaine`}
+        subtitle={`${state.employees.filter((e) => !e.archived).length} personnes · ${state.employees.filter((e) => !e.archived).reduce((a, e) => a + e.contractHours, 0)} h de contrat par semaine`}
         actions={
           <Link href="/equipe/nouveau" className={buttonClass("primary")}>
             <UserPlus size={16} /> Ajouter un employé
@@ -35,7 +35,7 @@ export default function TeamPage() {
           <span>Heures (semaine affichée)</span>
           <span />
         </div>
-        {state.employees.map((e) => (
+        {state.employees.filter((e) => !e.archived).map((e) => (
           <Link
             key={e.id}
             href={`/equipe/${e.id}`}
