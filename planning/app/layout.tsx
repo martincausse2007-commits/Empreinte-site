@@ -23,6 +23,9 @@ const display = localFont({
 export const metadata: Metadata = {
   title: "Quinzo — Le planning d'équipe en 15 minutes",
   description: "Planning d'équipe pour restaurants et boutiques : génération automatique, alertes, partage WhatsApp.",
+  // Application installable sur l'écran d'accueil (espace salarié)
+  icons: { apple: "/icons/apple-touch-icon.png" },
+  appleWebApp: { capable: true, title: "Quinzo", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {

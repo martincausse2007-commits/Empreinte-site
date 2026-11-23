@@ -107,8 +107,11 @@ describe("Publication et changements", () => {
   it("aucune différence → semaine « publiée »", () => {
     const s = demo();
     const week = addWeeks(s.currentWeek, -1);
-    expect(weekStatus(s.weekMeta![week], s.plans[week]).status).toBe("published");
+    const meta = { ...s.weekMeta![week], snapshot: snapshotOf(s.plans[week]) };
+    expect(weekStatus(meta, s.plans[week]).status).toBe("published");
     expect(diffWeek(s.plans[week], snapshotOf(s.plans[week]))).toEqual([]);
+    // La démo contient un remplacement urgent fait après publication : semaine « modifiée »
+    expect(weekStatus(s.weekMeta![week], s.plans[week]).status).toBe("modified");
   });
 });
 
@@ -163,12 +166,11 @@ describe("Masse salariale / chiffre d'affaires", () => {
 });
 
 describe("Demandes de l'équipe", () => {
-  it("la démo contient 2 disponibilités, 1 congé et 1 échange en attente", () => {
-    const r = demo().requests!;
+  it("la démo contient 2 disponibilités, 1 congé et 1 échange en attente du gérant", () => {
+    const r = demo().requests!.filter((x) => x.status === "pending");
     expect(r.filter((x) => x.type === "availability")).toHaveLength(2);
     expect(r.filter((x) => x.type === "leave")).toHaveLength(1);
     expect(r.filter((x) => x.type === "swap")).toHaveLength(1);
-    expect(r.every((x) => x.status === "pending")).toBe(true);
   });
   it("accepter un congé crée l'absence ; accepter un échange vérifié déplace le créneau", () => {
     const s = demo();

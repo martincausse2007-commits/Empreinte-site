@@ -11,8 +11,8 @@ import type { AppState, Shift } from "./types";
 import { createDemoState, STATE_VERSION } from "./demo-data";
 import { createDemoStore } from "./demo-store";
 import { getSupabase } from "./supabase/client";
-import { createEstablishmentFrom, listEstablishments, loadEstablishment, pushChanges } from "./cloud/sync";
-import type { Rows } from "./cloud/mapping";
+import { createEstablishmentFrom, listEstablishments, loadEstablishment, loadTeamActivity, pushChanges } from "./cloud/sync";
+import { toRows, type Rows } from "./cloud/mapping";
 import { addWeeks, mondayOf } from "./time";
 import { changeText, diffWeek } from "./publish";
 
@@ -36,6 +36,8 @@ type Ctx = {
   mode: Mode;
   /** Connecté mais aucun établissement : questionnaire à faire. */
   needsSetup: boolean;
+  /** Le compte connecté est relié à une fiche salarié (espace « /moi »). */
+  isEmployee: boolean;
   userEmail: string | null;
   saveStatus: SaveStatus;
   signOut: () => Promise<void>;
@@ -103,8 +105,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [mode, setMode] = useState<Mode>("loading");
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [isEmployee, setIsEmployee] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
+  const saveStatusRef = useRef<SaveStatus>("saved");
+  useEffect(() => {
+    saveStatusRef.current = saveStatus;
+  }, [saveStatus]);
   const [establishments, setEstablishments] = useState<EstablishmentSummary[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const demo = useRef<DemoStore | null>(null);
@@ -161,6 +168,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     demo.current = null;
     setUserEmail(session.user.email ?? null);
+    // Compte salarié ? (sa propre fiche lui est lisible, rien d'autre)
+    try {
+      const { data: me } = await sb.from("employees").select("establishment_id").eq("user_id", session.user.id).limit(1);
+      setIsEmployee(!!me?.length);
+    } catch {
+      setIsEmployee(false);
+    }
     try {
       let list = await listEstablishments(sb);
       // Inscription depuis la démo : on reprend tous les établissements de la démo
@@ -244,6 +258,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const timer = setTimeout(() => void flush(), 700);
     return () => clearTimeout(timer);
   }, [state, ready, mode, activeId, flush]);
+
+  // ---- Ce que l'équipe a fait de son côté (demandes, lectures) : relu toutes les minutes
+  useEffect(() => {
+    if (mode !== "cloud" || !ready) return;
+    const sb = getSupabase();
+    if (!sb) return;
+    let stop = false;
+    const pull = async () => {
+      const id = est.current;
+      if (!id || document.visibilityState !== "visible" || saveStatusRef.current === "saving") return;
+      try {
+        const t = await loadTeamActivity(sb, id);
+        if (stop || id !== est.current || (saveStatusRef.current as SaveStatus) === "saving") return;
+        setState((s) => {
+          const next = { ...s, requests: t.requests, reads: t.reads };
+          if (synced.current) synced.current = { ...synced.current, requests: toRows(next, id).requests };
+          return next;
+        });
+      } catch {
+        /* réseau coupé : on réessaiera */
+      }
+    };
+    const timer = setInterval(() => void pull(), 60000);
+    const onVisible = () => void pull();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      stop = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [mode, ready]);
 
   // ---- Plusieurs établissements -------------------------------------------------
   const switchTo = useCallback(
@@ -441,6 +486,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ready,
         mode,
         needsSetup,
+        isEmployee,
         userEmail,
         saveStatus,
         signOut,

@@ -1,6 +1,6 @@
 // Traduction entre l'état de l'application (AppState) et les tables de la base.
 
-import type { AppState, Rules } from "../types";
+import type { AppState, OpenShift, Reads, Rules, Shift, TeamRequest, WeekMeta } from "../types";
 import { DEFAULT_RULES } from "../presets";
 import { STATE_VERSION } from "../demo-data";
 import { addWeeks, mondayOf } from "../time";
@@ -16,15 +16,19 @@ export type Rows = {
   shifts: Row[];
   templates: Row[];
   absences: Row[];
+  weeks: Row[];
+  requests: Row[];
 };
 
 /** Tables « enfants », dans l'ordre où il faut les écrire (parents avant enfants). */
-export const CHILD_TABLES = ["posts", "services", "employees", "needs", "shifts", "absences", "templates"] as const;
+export const CHILD_TABLES = ["posts", "services", "employees", "needs", "shifts", "absences", "templates", "weeks", "requests"] as const;
 export type ChildTable = (typeof CHILD_TABLES)[number];
 
 /** Clé unique d'une ligne dans son établissement. */
 export function rowKey(table: ChildTable, r: Row): string {
-  return table === "needs" ? `${r.day}|${r.service_id}|${r.post_id}` : String(r.id);
+  if (table === "needs") return `${r.day}|${r.service_id}|${r.post_id}`;
+  if (table === "weeks") return String(r.week).slice(0, 10);
+  return String(r.id);
 }
 
 export function toRows(s: AppState, est: string): Rows {
@@ -52,6 +56,10 @@ export function toRows(s: AppState, est: string): Rows {
       max_splits_per_week: r.maxSplitsPerWeek,
       overtime_hours: r.overtimeHours,
       weekend_fairness: r.weekendFairness,
+      notice_part_time_days: r.noticePartTimeDays ?? 7,
+      notice_full_time_days: r.noticeFullTimeDays ?? 7,
+      labor_target_percent: r.laborTargetPercent ?? 30,
+      employer_charges_percent: r.employerChargesPercent ?? 0,
     },
     posts: s.posts.map((p, i) => ({ establishment_id: est, id: p.id, name: p.name, color: p.color, position: i })),
     services: s.services.map((v, i) => ({
@@ -83,6 +91,8 @@ export function toRows(s: AppState, est: string): Rows {
       hourly_rate: e.hourlyRate ?? null,
       archived: !!e.archived,
       position: i,
+      prefs: e.prefs ?? {},
+      email: e.email || null,
     })),
     shifts: Object.entries(s.plans).flatMap(([week, list]) =>
       list.map((x) => ({
@@ -96,12 +106,33 @@ export function toRows(s: AppState, est: string): Rows {
         post_id: x.postId,
         break_minutes: x.breakMinutes ?? null,
         extra: !!x.extra,
+        locked: !!x.locked,
+        manual: !!x.manual,
+        reason: x.reason?.length ? x.reason : null,
       })),
     ),
     templates: s.templates.map((t) => ({ establishment_id: est, id: t.id, name: t.name, weeks: t.weeks })),
     absences: (s.absences ?? []).map((a) => ({ establishment_id: est, id: a.id, employee_id: a.employeeId, type: a.type, start_date: a.start, end_date: a.end })),
+    weeks: Object.entries(s.weekMeta ?? {}).map(([week, m]) => ({
+      establishment_id: est,
+      week,
+      status: m.status,
+      published_at: m.publishedAt ?? null,
+      published_snapshot: m.snapshot ?? null,
+      changes: m.changes ?? [],
+      locked_employees: m.lockedEmployees ?? [],
+      revenue: m.revenue ?? null,
+      open_shifts: m.openShifts ?? [],
+    })),
+    requests: (s.requests ?? []).map((q) => {
+      const { id, employeeId, status, createdAt, type, ...payload } = q;
+      return { establishment_id: est, id, employee_id: employeeId, type, status, payload, created_at: createdAt };
+    }),
   };
 }
+
+/** Date ISO stable (la base renvoie « +00:00 », le navigateur « Z »). */
+const iso = (v: unknown) => (v ? new Date(String(v)).toISOString() : undefined);
 
 const num = (v: unknown) => (v === null || v === undefined ? undefined : Number(v));
 
@@ -121,7 +152,26 @@ export function fromRows(rows: Rows, opts: { currentWeek?: string; shareToken?: 
       postId: String(x.post_id),
       ...(x.break_minutes != null ? { breakMinutes: Number(x.break_minutes) } : {}),
       ...(x.extra ? { extra: true } : {}),
+      ...(x.locked ? { locked: true } : {}),
+      ...(x.manual ? { manual: true } : {}),
+      ...((x.reason as string[] | null)?.length ? { reason: x.reason as string[] } : {}),
     });
+  }
+  const weekMeta: NonNullable<AppState["weekMeta"]> = {};
+  for (const w of rows.weeks ?? []) {
+    const k = String(w.week).slice(0, 10);
+    // Ligne créée automatiquement par la base pour une semaine en brouillon, sans rien d'autre : ignorée
+    const empty = w.status === "draft" && !w.published_snapshot && !(w.changes as unknown[])?.length && !(w.locked_employees as unknown[])?.length && !w.revenue && !(w.open_shifts as unknown[])?.length;
+    if (empty) continue;
+    weekMeta[k] = {
+      status: w.status === "draft" ? "draft" : "published", // « modifié » se recalcule à partir de la copie publiée
+      ...(w.published_at ? { publishedAt: iso(w.published_at) } : {}),
+      ...(w.published_snapshot ? { snapshot: w.published_snapshot as Shift[] } : {}),
+      changes: (w.changes as NonNullable<WeekMeta["changes"]>) ?? [],
+      lockedEmployees: (w.locked_employees as string[]) ?? [],
+      ...(w.revenue ? { revenue: w.revenue as (number | null)[] } : {}),
+      openShifts: (w.open_shifts as OpenShift[]) ?? [],
+    };
   }
   const currentWeek = opts.currentWeek ?? addWeeks(mondayOf(new Date()), 1);
   return {
@@ -146,6 +196,10 @@ export function fromRows(rows: Rows, opts: { currentWeek?: string; shareToken?: 
       maxSplitsPerWeek: Number(r.max_splits_per_week ?? DEFAULT_RULES.maxSplitsPerWeek),
       overtimeHours: Number(r.overtime_hours ?? DEFAULT_RULES.overtimeHours),
       weekendFairness: Boolean(r.weekend_fairness ?? DEFAULT_RULES.weekendFairness),
+      noticePartTimeDays: Number(r.notice_part_time_days ?? 7),
+      noticeFullTimeDays: Number(r.notice_full_time_days ?? 7),
+      laborTargetPercent: Number(r.labor_target_percent ?? 30),
+      employerChargesPercent: Number(r.employer_charges_percent ?? 0),
     },
     posts: [...rows.posts].sort(byPos).map((p) => ({ id: String(p.id), name: String(p.name), color: p.color as AppState["posts"][number]["color"] })),
     services: [...rows.services].sort(byPos).map((v) => ({
@@ -168,19 +222,38 @@ export function fromRows(rows: Rows, opts: { currentWeek?: string; shareToken?: 
       weekendHistory: Number(x.weekend_history ?? 0),
       ...(num(x.hourly_rate) !== undefined ? { hourlyRate: num(x.hourly_rate) } : {}),
       ...(x.archived ? { archived: true } : {}),
+      ...(x.prefs && Object.keys(x.prefs as object).length ? { prefs: x.prefs as AppState["employees"][number]["prefs"] } : {}),
+      ...(x.email ? { email: String(x.email) } : {}),
+      ...(x.user_id ? { linked: true } : {}),
     })),
     plans,
     templates: rows.templates.map((t) => ({ id: String(t.id), name: String(t.name), weeks: (t.weeks as AppState["templates"][number]["weeks"]) ?? [], createdAt: String(t.created_at ?? "").slice(0, 10) })),
     absences: rows.absences.map((a) => ({ id: String(a.id), employeeId: String(a.employee_id), type: a.type as AppState["absences"][number]["type"], start: String(a.start_date).slice(0, 10), end: String(a.end_date).slice(0, 10) })),
+    weekMeta,
+    requests: requestsFromRows(rows.requests ?? []),
     currentWeek,
     shareToken: opts.shareToken ?? "",
   };
 }
 
+export function requestsFromRows(list: Row[]): TeamRequest[] {
+  return [...list]
+    .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+    .map((q) => ({ ...(q.payload as object), id: String(q.id), employeeId: String(q.employee_id), status: q.status, type: q.type, createdAt: iso(q.created_at) ?? "" }) as TeamRequest);
+}
+
+/** Accusés de lecture lus dans la base. */
+export function readsFromRows(list: Row[]): Reads {
+  const out: Reads = {};
+  for (const r of list) (out[String(r.week).slice(0, 10)] ??= {})[String(r.employee_id)] = { version: iso(r.version) ?? "", at: iso(r.read_at) ?? "" };
+  return out;
+}
+
 /** JSON dont les clés sont triées : deux objets égaux donnent le même texte (la base réordonne les clés). */
 export function stable(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(stable).join(",")}]`;
-  if (v && typeof v === "object") return `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${stable((v as Record<string, unknown>)[k])}`).join(",")}}`;
+  // Une clé sans valeur (undefined) n'existe pas en JSON : on l'ignore
+  if (v && typeof v === "object") return `{${Object.keys(v).filter((k) => (v as Record<string, unknown>)[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${stable((v as Record<string, unknown>)[k])}`).join(",")}}`;
   return JSON.stringify(v ?? null);
 }
 

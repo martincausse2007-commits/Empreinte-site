@@ -3,13 +3,13 @@
 
 import type { AppState, Employee, Needs, Post, Service, TeamRequest, Template } from "./types";
 import { snapshotOf } from "./publish";
-import { swapProblems } from "./requests";
+import { offerShift, openCandidates, swapProblems } from "./requests";
 import { DEFAULT_RULES } from "./presets";
 import { needKey } from "./rules";
 import { generateWeek } from "./generate";
 import { addWeeks, dateOfDay, mondayOf, toISODate } from "./time";
 
-export const STATE_VERSION = 3;
+export const STATE_VERSION = 4;
 
 const RESTAURANT_POSTS: Post[] = [
   { id: "salle", name: "Salle", color: "blue" },
@@ -110,6 +110,7 @@ export function createDemoState(name?: string): AppState {
     shareToken: "demo-" + Math.random().toString(36).slice(2, 8),
   };
   state.requests = demoRequests(state, thisWeek, nextWeek);
+  addDemoTeamActivity(state, thisWeek);
   return state;
 }
 
@@ -134,14 +135,44 @@ function demoRequests(state: AppState, thisWeek: string, nextWeek: string): Team
   out.push({ id: "rq3", type: "leave", employeeId: "e7", status: "pending", createdAt: at(6), absenceType: "cp", start: toISODate(dateOfDay(addWeeks(nextWeek, 2), 1)), end: toISODate(dateOfDay(addWeeks(nextWeek, 2), 3)), note: "mariage de ma sœur" });
   // Échange : un créneau de la semaine en cours, proposé à un collègue qui peut le prendre sans enfreindre de règle
   const shifts = state.plans[thisWeek];
-  for (const s of shifts.filter((x) => x.day >= 3).sort((a, b) => b.day - a.day)) {
-    for (const to of state.employees.filter((e) => e.id !== s.employeeId && e.postIds.includes(s.postId))) {
-      const r = { id: "rq4", type: "swap" as const, employeeId: s.employeeId, status: "pending" as const, createdAt: at(3), week: thisWeek, shiftId: s.id, toEmployeeId: to.id };
-      if (swapProblems(state, r).length === 0) {
-        out.push(r);
-        return out;
+  const used = new Set<string>();
+  const findSwap = (id: string, status: "pending" | "peer", minDay: number) => {
+    for (const s of shifts.filter((x) => x.day >= minDay && !used.has(x.employeeId)).sort((a, b) => b.day - a.day)) {
+      for (const to of state.employees.filter((e) => e.id !== s.employeeId && !used.has(e.id) && e.postIds.includes(s.postId))) {
+        const r = { id, type: "swap" as const, employeeId: s.employeeId, status, createdAt: at(status === "peer" ? 1 : 3), week: thisWeek, shiftId: s.id, toEmployeeId: to.id };
+        if (swapProblems(state, r).length === 0) {
+          used.add(s.employeeId).add(to.id);
+          return r;
+        }
       }
     }
-  }
+  };
+  const sw = findSwap("rq4", "pending", 3);
+  if (sw) out.push(sw);
+  // Échange proposé à un collègue qui n'a pas encore répondu (visible dans « Voir comme un salarié »)
+  const peer = findSwap("rq5", "peer", 2);
+  if (peer) out.push(peer);
   return out;
+}
+
+/** Accusés de lecture et remplacement urgent d'exemple sur la semaine en cours. */
+function addDemoTeamActivity(state: AppState, week: string) {
+  const meta = state.weekMeta![week];
+  const v = meta.publishedAt!;
+  // 7 personnes sur 10 ont ouvert le planning publié
+  const seen = state.employees.filter((e) => !e.archived).slice(0, 7);
+  state.reads = { [week]: Object.fromEntries(seen.map((e, i) => [e.id, { version: v, at: new Date(new Date(v).getTime() + (i + 1) * 3600000).toISOString() }])) };
+  // Fin de semaine : une personne malade, son créneau est proposé en urgence à ceux qui peuvent le prendre
+  const busy = new Set((state.requests ?? []).flatMap((r) => (r.type === "swap" ? [r.shiftId, r.employeeId, r.toEmployeeId] : [])));
+  const onlyOne = (s: { employeeId: string; day: number }) => state.plans[week].filter((x) => x.employeeId === s.employeeId && x.day === s.day).length === 1;
+  const options = state.plans[week].filter((s) => s.day >= 4 && onlyOne(s) && !busy.has(s.id) && !busy.has(s.employeeId)).sort((a, b) => b.day - a.day || b.start.localeCompare(a.start));
+  const sick = options.find((s) => openCandidates(state, week, s, s.employeeId).length > 0);
+  if (!sick) return;
+  const date = toISODate(dateOfDay(week, sick.day));
+  state.absences = [...state.absences, { id: "a-sick", employeeId: sick.employeeId, type: "absence", start: date, end: date }];
+  const { state: next, open } = offerShift(state, week, { day: sick.day, start: sick.start, end: sick.end, postId: sick.postId, breakMinutes: sick.breakMinutes }, { fromShift: sick, urgent: true, note: "absence de dernière minute" });
+  Object.assign(state, next);
+  const at = new Date(Date.now() - 2 * 3600000).toISOString();
+  state.weekMeta![week] = { ...state.weekMeta![week], changes: [{ at, employeeId: sick.employeeId, text: `${["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"][sick.day]} : repos (avant : ${sick.start.replace(":00", "h")}–${sick.end.replace(":00", "h")}) · absence, créneau proposé en urgence` }] };
+  if (open.offeredTo[0]) state.requests = [...(state.requests ?? []), { id: "rq6", type: "claim", employeeId: open.offeredTo[0], status: "pending", createdAt: new Date(Date.now() - 1800000).toISOString(), week, openId: open.id }];
 }

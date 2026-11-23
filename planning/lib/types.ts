@@ -87,6 +87,10 @@ export type Employee = {
   /** Salarié supprimé : nom effacé, seul l'historique anonymisé est gardé. */
   archived?: boolean;
   prefs?: EmployeePrefs;
+  /** E-mail pour les notifications (facultatif, saisi par le gérant). */
+  email?: string;
+  /** Le salarié a relié son compte (application salarié). Lu seulement. */
+  linked?: boolean;
 };
 
 /** Préférences et limites horaires d'un salarié. */
@@ -141,18 +145,43 @@ export type WeekMeta = {
   lockedEmployees?: string[];
   /** Chiffre d'affaires prévu par jour (0 = lundi), saisi à la main. */
   revenue?: (number | null)[];
+  /** Créneaux libres proposés à l'équipe (dont remplacements urgents). */
+  openShifts?: OpenShift[];
 };
 
+/** Créneau sans titulaire, proposé à l'équipe : le premier volontaire est validé par le gérant. */
+export type OpenShift = {
+  id: string;
+  day: number;
+  start: string;
+  end: string;
+  postId: string;
+  breakMinutes?: number;
+  /** Remplacement de dernière minute. */
+  urgent?: boolean;
+  /** Personnes à qui il est proposé (celles qui peuvent le prendre sans enfreindre de règle). */
+  offeredTo: string[];
+  createdAt: string;
+  note?: string;
+};
+
+/** Accusés de lecture : semaine → salarié → version publiée lue (date de publication) et date de lecture. */
+export type Reads = Record<string, Record<string, { version: string; at: string }>>;
+
 /** Demandes faites par l'équipe (simulées dans la démo, réelles en phase 2). */
+export type RequestStatus = "peer" | "pending" | "accepted" | "refused" | "cancelled";
+
 export type TeamRequest = {
   id: string;
   employeeId: string;
-  status: "pending" | "accepted" | "refused";
+  /** peer = échange en attente de la réponse du collègue ; pending = attend le gérant. */
+  status: RequestStatus;
   createdAt: string;
 } & (
   | { type: "leave"; absenceType: AbsenceType; start: string; end: string; note?: string }
   | { type: "swap"; week: string; shiftId: string; toEmployeeId: string }
   | { type: "availability"; unavailability: Unavailability[]; preferences?: EmployeePrefs; text: string }
+  | { type: "claim"; week: string; openId: string }
 );
 
 /** Clé "jour|serviceId|postId" -> nombre de personnes nécessaires. */
@@ -195,6 +224,8 @@ export type AppState = {
   weekMeta?: Record<string, WeekMeta>;
   /** Demandes de l'équipe (congés, échanges, disponibilités). */
   requests?: TeamRequest[];
+  /** Qui a vu quelle version publiée (chargé depuis la base, jamais écrit par le gérant). */
+  reads?: Reads;
   currentWeek: string;
   shareToken: string;
 };

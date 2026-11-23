@@ -63,10 +63,12 @@ function files(dir: string): string[] {
   });
 }
 const sources = ["app", "components", "lib"].flatMap((d) => files(join(__dirname, "..", d))).filter((f) => !f.endsWith("globals.css"));
+// Exceptions : le manifeste de l'application et les e-mails ne peuvent pas utiliser les variables CSS du thème
+const NO_CSS_VARS = ["app/manifest.ts", "lib/notify-text.ts"];
 
 describe("Pas de couleur en dur ni de gris trop clair", () => {
   it("aucune couleur hexadécimale dans les composants", () => {
-    const offenders = sources.filter((f) => /(bg|text|border|ring|fill|stroke)-\[#|["'`]#[0-9a-fA-F]{3,6}["'`]/.test(readFileSync(f, "utf8").replace(/themeColor:.*$/m, "")));
+    const offenders = sources.filter((f) => !NO_CSS_VARS.some((x) => f.endsWith(x))).filter((f) => /(bg|text|border|ring|fill|stroke)-\[#|["'`]#[0-9a-fA-F]{3,6}["'`]/.test(readFileSync(f, "utf8").replace(/themeColor:.*$/m, "")));
     expect(offenders).toEqual([]);
   });
   it("aucun texte en slate-300 / slate-400", () => {

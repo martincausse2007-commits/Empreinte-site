@@ -22,6 +22,8 @@ export function deleteEmployee(state: AppState, id: string, today = new Date()):
     // Semaine en cours et suivantes : ses créneaux sont retirés
     plans: Object.fromEntries(Object.entries(state.plans).map(([w, list]) => [w, w >= thisWeek ? list.filter((s) => s.employeeId !== id) : list])),
     absences: (state.absences ?? []).filter((a) => a.employeeId !== id),
+    // Ses demandes en attente sont closes (supprimées s'il n'a pas d'historique)
+    requests: (state.requests ?? []).filter((r) => hasHistory || r.employeeId !== id).map((r) => (r.employeeId === id && (r.status === "pending" || r.status === "peer") ? { ...r, status: "cancelled" as const } : r)),
     templates: state.templates.map((t) => ({ ...t, weeks: t.weeks.map((w) => w.filter((s) => s.employeeId !== id)) })),
   };
 }

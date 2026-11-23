@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, Lightbulb, Lock, Trash2 } from "lucide-react";
+import { AlertTriangle, Lightbulb, Lock, Trash2, Zap } from "lucide-react";
 import type { AppState, Shift } from "@/lib/types";
 import { isUnavailable, serviceActive, shiftHours, svTime } from "@/lib/rules";
 import { computeAlerts } from "@/lib/engine/check";
@@ -24,8 +24,11 @@ export function ShiftEditor({
   onDelete,
   week,
   onReplace,
+  onUrgent,
 }: {
   week: string;
+  /** Remplacement de dernière minute : proposé à tous ceux qui peuvent le prendre. */
+  onUrgent?: (absence?: AbsenceType) => void;
   /** Confie ce créneau à quelqu'un d'autre ; marque éventuellement l'absence de la personne prévue. */
   onReplace: (employeeId: string, absence?: AbsenceType) => void;
   state: AppState;
@@ -224,13 +227,13 @@ export function ShiftEditor({
             ))}
           </div>
         )}
-        {!isNew && <ReplaceSection state={state} week={week} shifts={shifts} shift={initial} onReplace={onReplace} />}
+        {!isNew && <ReplaceSection state={state} week={week} shifts={shifts} shift={initial} onReplace={onReplace} onUrgent={onUrgent} />}
       </div>
     </Modal>
   );
 }
 
-function ReplaceSection({ state, week, shifts, shift, onReplace }: { state: AppState; week: string; shifts: Shift[]; shift: Shift; onReplace: (id: string, absence?: AbsenceType) => void }) {
+function ReplaceSection({ state, week, shifts, shift, onReplace, onUrgent }: { state: AppState; week: string; shifts: Shift[]; shift: Shift; onReplace: (id: string, absence?: AbsenceType) => void; onUrgent?: (absence?: AbsenceType) => void }) {
   const person = state.employees.find((e) => e.id === shift.employeeId);
   const already = absencesForWeek(state, week).get(shift.employeeId)?.get(shift.day);
   const [open, setOpen] = useState(!!already);
@@ -269,7 +272,20 @@ function ReplaceSection({ state, week, shifts, shift, onReplace }: { state: AppS
           </div>
         </div>
       )}
-      <div className="mb-1.5 text-[13px] text-slate-700">Remplaçants possibles, du plus adapté au moins adapté :</div>
+      {onUrgent && candidates.some((c) => c.overContract === undefined) && (
+        <button
+          type="button"
+          onClick={() => onUrgent(already ? undefined : absence || undefined)}
+          className="mb-3 flex min-h-11 w-full items-center gap-3 rounded-xl bg-brand-600 px-3 py-2 text-left text-white shadow-sm hover:bg-brand-700"
+        >
+          <Zap size={18} className="shrink-0" />
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold">Urgence : proposer à tous ceux qui peuvent</span>
+            <span className="block text-xs text-brand-100">Notification gratuite à {candidates.filter((c) => c.overContract === undefined).length} personne(s). Vous validez le premier volontaire.</span>
+          </span>
+        </button>
+      )}
+      <div className="mb-1.5 text-[13px] text-slate-700">Ou choisissez vous-même, du plus adapté au moins adapté :</div>
       {candidates.length === 0 ? (
         <p className="rounded-lg bg-slate-50 p-3 text-[13px] text-slate-700">Personne ne peut prendre ce créneau sans enfreindre une règle. Laissez la place à pourvoir ou modifiez les horaires.</p>
       ) : (

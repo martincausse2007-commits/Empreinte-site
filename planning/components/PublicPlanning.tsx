@@ -1,32 +1,75 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { Post, Shift } from "@/lib/types";
+import { getSupabase } from "@/lib/supabase/client";
+import { isCloudConfigured } from "@/lib/supabase/config";
+
+type View = {
+  name: string;
+  employees: { id: string; firstName: string; lastName?: string; contractHours?: number }[];
+  posts: Post[];
+  weeks: Record<string, { publishedAt?: string; snapshot: Shift[] }>;
+};
+
+/** Données affichées : la démo du navigateur, ou la base (semaines publiées seulement) pour un vrai lien. */
+function usePublicView(token: string): View | null | undefined {
+  const { state, ready } = useApp();
+  const cloud = isCloudConfigured && token !== "demo";
+  const [remote, setRemote] = useState<View | null | undefined>(undefined);
+  useEffect(() => {
+    if (!cloud) return;
+    void getSupabase()
+      ?.rpc("get_public_planning", { p_token: token })
+      .then(({ data }) => {
+        if (!data) return setRemote(null);
+        const d = data as { establishment: string; posts: Post[]; employees: { id: string; first_name: string }[]; weeks: { week: string; published_at?: string; snapshot?: Shift[] }[] };
+        setRemote({
+          name: d.establishment,
+          posts: d.posts,
+          employees: d.employees.map((e) => ({ id: e.id, firstName: e.first_name })),
+          weeks: Object.fromEntries(d.weeks.map((x) => [String(x.week).slice(0, 10), { publishedAt: x.published_at, snapshot: x.snapshot ?? [] }])),
+        });
+      });
+  }, [cloud, token]);
+  if (cloud) return remote;
+  if (!ready) return undefined;
+  const weeks: View["weeks"] = {};
+  for (const [w, m] of Object.entries(state.weekMeta ?? {})) if (m.status === "published" && m.snapshot) weeks[w] = { publishedAt: m.publishedAt, snapshot: m.snapshot };
+  return { name: state.establishment.name, posts: state.posts, employees: state.employees.filter((e) => !e.archived), weeks };
+}
 import { ChevronLeft, ChevronRight, Eye } from "lucide-react";
 import { useApp } from "@/lib/store";
 import { hoursByEmployee } from "@/lib/rules";
-import { DAYS, addWeeks, formatDayDate, formatHours, formatTime, formatWeekRange } from "@/lib/time";
+import { DAYS, addWeeks, formatDayDate, formatHours, formatTime, formatWeekRange, mondayOf } from "@/lib/time";
 import { POST_COLORS } from "@/lib/colors";
 import { Avatar, cx } from "./ui";
 import { Logo } from "./Logo";
 
 /** Page publique en lecture seule, pensée pour le téléphone des employés. */
 export function PublicPlanning({ token }: { token: string }) {
-  void token; // À l'étape 2, le jeton servira à retrouver l'établissement dans la base.
-  const { state, ready } = useApp();
+  const view = usePublicView(token);
   const [week, setWeek] = useState<string | null>(null);
   const [me, setMe] = useState<string>("");
-  const w = week ?? state.currentWeek;
+  // Semaine affichée : celle demandée, sinon la semaine en cours si publiée, sinon la plus proche publiée
+  const thisMonday = mondayOf(new Date());
+  const published = Object.keys(view?.weeks ?? {}).sort();
+  const w = week ?? (published.includes(thisMonday) ? thisMonday : (published.find((x) => x > thisMonday) ?? published[published.length - 1] ?? thisMonday));
   // L'équipe ne voit que la version publiée (jamais le brouillon en cours)
-  const meta = state.weekMeta?.[w];
-  const shifts = useMemo(() => {
-    if (!state.weekMeta) return state.plans[w] ?? []; // comptes sans publication (avant la phase 2)
-    return meta?.status === "published" ? (meta.snapshot ?? []) : [];
-  }, [state.weekMeta, state.plans, meta, w]);
+  const meta = view?.weeks[w];
+  const shifts = useMemo(() => meta?.snapshot ?? [], [meta]);
   const hours = hoursByEmployee(shifts);
-  const emp = (id: string) => state.employees.find((e) => e.id === id);
-  const post = (id: string) => state.posts.find((p) => p.id === id);
+  const emp = (id: string) => view?.employees.find((e) => e.id === id);
+  const post = (id: string) => view?.posts.find((p) => p.id === id);
 
-  if (!ready) return null;
+  if (view === undefined) return null;
+  if (view === null)
+    return (
+      <div className="mx-auto min-h-dvh max-w-xl px-4 py-12 text-center">
+        <Logo />
+        <p className="mt-6 rounded-xl bg-white p-6 text-sm text-slate-600">Ce lien n&apos;est plus valable. Demandez le nouveau lien à votre responsable.</p>
+      </div>
+    );
 
   return (
     <div className="mx-auto min-h-dvh max-w-xl px-4 pb-12">
@@ -37,7 +80,7 @@ export function PublicPlanning({ token }: { token: string }) {
         </span>
       </header>
 
-      <h1 className="text-xl font-semibold">{state.establishment.name}</h1>
+      <h1 className="text-xl font-semibold">{view.name}</h1>
       <div className="mt-3 mb-4 flex items-center justify-between rounded-xl border border-slate-200 bg-white">
         <button className="flex h-12 w-12 items-center justify-center text-slate-600" onClick={() => setWeek(addWeeks(w, -1))} aria-label="Semaine précédente">
           <ChevronLeft size={18} />
@@ -50,9 +93,9 @@ export function PublicPlanning({ token }: { token: string }) {
 
       <select value={me} onChange={(e) => setMe(e.target.value)} className="mb-5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-[15px]">
         <option value="">Toute l&apos;équipe</option>
-        {state.employees.filter((e) => !e.archived).map((e) => (
+        {view.employees.map((e) => (
           <option key={e.id} value={e.id}>
-            Je suis {e.firstName} {e.lastName}
+            Je suis {e.firstName} {e.lastName ?? ""}
           </option>
         ))}
       </select>
@@ -61,7 +104,7 @@ export function PublicPlanning({ token }: { token: string }) {
         <div className="mb-5 rounded-2xl bg-brand-600 p-4 text-white">
           <div className="text-sm">Mes heures cette semaine</div>
           <div className="text-2xl font-semibold">
-            {formatHours(hours[me] ?? 0)} <span className="text-base font-normal">/ {emp(me)?.contractHours} h</span>
+            {formatHours(hours[me] ?? 0)} {emp(me)?.contractHours !== undefined && <span className="text-base font-normal">/ {emp(me)?.contractHours} h</span>}
           </div>
         </div>
       )}
@@ -93,7 +136,7 @@ export function PublicPlanning({ token }: { token: string }) {
                       if (!e) return null;
                       return (
                         <li key={s.id} className="flex items-center gap-3 px-4 py-2.5">
-                          <Avatar id={e.id} name={`${e.firstName} ${e.lastName}`} size={30} />
+                          <Avatar id={e.id} name={`${e.firstName} ${e.lastName ?? ""}`} size={30} />
                           <span className="flex-1 text-sm font-medium">{e.firstName}</span>
                           {p && (
                             <span className={cx("rounded-full px-2 py-0.5 text-xs font-medium", POST_COLORS[p.color].soft)}>{p.name}</span>

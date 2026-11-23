@@ -5,16 +5,18 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeftRight, CalendarCheck2, CalendarOff, Check, CircleDot, Euro, History, Inbox, Lock, RefreshCw, Scale, Send, X } from "lucide-react";
+import { Eye, Hand, Megaphone, Zap, ArrowLeftRight, CalendarCheck2, CalendarOff, Check, CircleDot, Euro, History, Inbox, Lock, RefreshCw, Scale, Send, X } from "lucide-react";
 import { useApp } from "@/lib/store";
 import type { Shift } from "@/lib/types";
-import { snapshotOf, weekStatus } from "@/lib/publish";
+import { changeText, snapshotOf, weekStatus } from "@/lib/publish";
+import { notifySummary, notifyTeam } from "@/lib/notify-client";
 import { laborOfWeek } from "@/lib/labor";
-import { answerRequest, requestSummary, swapProblems } from "@/lib/requests";
+import { answerRequest, claimProblems, offerShift, readStatus, requestSummary, swapProblems, withdrawOpen } from "@/lib/requests";
 import { explainUnfilled } from "@/lib/generate";
 import { fairnessTable } from "@/lib/fairness";
-import { DAYS, DAYS_SHORT } from "@/lib/time";
+import { DAYS, DAYS_SHORT, formatTime, formatWeekRange } from "@/lib/time";
 import { forWeek } from "@/lib/week";
+import { svTime } from "@/lib/rules";
 import { Button, Card, Modal, buttonClass, cx, inputClass, useConfirm, useToast } from "../ui";
 
 const euros = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €";
@@ -23,11 +25,13 @@ const pct = (r: number) => Math.round(r * 100) + " %";
 // ---- Publication ------------------------------------------------------------
 
 export function PublishBar({ week, shifts }: { week: string; shifts: Shift[] }) {
-  const { state, update } = useApp();
+  const { state, update, mode, activeId } = useApp();
   const toast = useToast();
   const confirm = useConfirm();
+  const [seenOpen, setSeenOpen] = useState(false);
   const meta = state.weekMeta?.[week];
   const { status, changes } = weekStatus(meta, shifts);
+  const reads = readStatus(state, week);
   if (!shifts.length) return null;
 
   async function publish() {
@@ -41,6 +45,10 @@ export function PublishBar({ week, shifts }: { week: string; shifts: Shift[] }) 
       { record: true },
     );
     toast(status === "draft" ? "Planning publié : l'équipe peut le voir" : "Nouvelle version publiée");
+    // Prévenir l'équipe (gratuit : notification du téléphone ou e-mail) : tout le monde, ou seulement les personnes concernées
+    const ids = status === "draft" ? [...new Set(shifts.map((s) => s.employeeId))] : [...new Set(changes.map((c) => c.employeeId))];
+    const r = await notifyTeam(mode, { establishmentId: activeId, kind: status === "draft" ? "published" : "changes", employeeIds: ids, weekLabel: formatWeekRange(week), detail: changes.length === 1 ? changeText(changes[0]) : undefined });
+    setTimeout(() => toast(notifySummary(r)), 1800);
   }
 
   const when = meta?.publishedAt ? new Date(meta.publishedAt).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" }) : "";
@@ -65,6 +73,11 @@ export function PublishBar({ week, shifts }: { week: string; shifts: Shift[] }) 
         </span>
       </span>
       <span className="flex gap-2">
+        {reads && reads.total > 0 && (
+          <button onClick={() => setSeenOpen((v) => !v)} aria-expanded={seenOpen} className={cx(buttonClass("ghost", "sm"), "tabular-nums")} title="Qui a ouvert cette version du planning">
+            <Eye size={14} /> Vu par {reads.seen.length}/{reads.total}
+          </button>
+        )}
         {status !== "draft" && (
           <Link href="/partage" className={buttonClass("ghost", "sm")}>
             <History size={14} /> Historique
@@ -76,6 +89,21 @@ export function PublishBar({ week, shifts }: { week: string; shifts: Shift[] }) 
           </Button>
         )}
       </span>
+      {seenOpen && reads && (
+        <div className="w-full border-t border-black/5 pt-2 text-[13px]">
+          <div>
+            <span className="font-medium text-emerald-800">Vu : </span>
+            {reads.seen.length ? reads.seen.map((e) => e.firstName).join(", ") : "personne pour l'instant"}
+          </div>
+          {reads.notSeen.length > 0 && (
+            <div>
+              <span className="font-medium text-amber-900">Pas encore vu : </span>
+              {reads.notSeen.map((e) => e.firstName).join(", ")}
+            </div>
+          )}
+          <div className="mt-0.5 text-xs text-slate-600">Compte quand le salarié ouvre son planning dans l&apos;application. Le lien WhatsApp seul ne le signale pas.</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -138,17 +166,25 @@ export function RegenerateModal({ open, onClose, onRun, defaultDay, kept }: { op
 // ---- Demandes de l'équipe ---------------------------------------------------
 
 export function RequestsCard() {
-  const { state, update } = useApp();
+  const { state, update, mode, activeId } = useApp();
   const toast = useToast();
   const [all, setAll] = useState(false);
   const pending = (state.requests ?? []).filter((r) => r.status === "pending");
+  const waitingPeer = (state.requests ?? []).filter((r) => r.status === "peer").length;
   if (!pending.length) return null;
   const shown = all ? pending : pending.slice(0, 2);
-  const answer = (id: string, ok: boolean) => {
+  const answer = async (id: string, ok: boolean) => {
+    const r = pending.find((x) => x.id === id)!;
+    const label = { leave: "Votre demande de congé", swap: "Votre échange", availability: "Vos nouvelles disponibilités", claim: "Le créneau que vous vouliez prendre" }[r.type];
+    // Les autres volontaires du même créneau reçoivent un refus : on les prévient aussi
+    const others = r.type === "claim" && ok ? pending.filter((x) => x.type === "claim" && x.openId === r.openId && x.id !== id).map((x) => x.employeeId) : [];
     update((s) => answerRequest(s, id, ok), { record: true });
     toast(ok ? "Demande acceptée" : "Demande refusée");
+    const ids = r.type === "swap" ? [r.employeeId, r.toEmployeeId] : [r.employeeId];
+    await notifyTeam(mode, { establishmentId: activeId, kind: "answered", employeeIds: ids, detail: label, accepted: ok });
+    if (others.length) await notifyTeam(mode, { establishmentId: activeId, kind: "answered", employeeIds: others, detail: label, accepted: false });
   };
-  const Icon = { leave: CalendarOff, swap: ArrowLeftRight, availability: CalendarCheck2 };
+  const Icon = { leave: CalendarOff, swap: ArrowLeftRight, availability: CalendarCheck2, claim: Hand };
   return (
     <Card className="p-4">
       <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
@@ -157,14 +193,14 @@ export function RequestsCard() {
       <ul className="divide-y divide-slate-100">
         {shown.map((r) => {
           const I = Icon[r.type];
-          const problems = r.type === "swap" ? swapProblems(state, r) : [];
+          const problems = r.type === "swap" ? swapProblems(state, r) : r.type === "claim" ? claimProblems(state, r) : [];
           return (
             <li key={r.id} className="flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center">
               <span className="flex min-w-0 flex-1 items-start gap-2.5 text-sm">
                 <I size={16} className="mt-0.5 shrink-0 text-slate-500" />
                 <span className="min-w-0">
                   <span className="block">{requestSummary(state, r)}</span>
-                  {r.type === "swap" &&
+                  {(r.type === "swap" || r.type === "claim") &&
                     (problems.length ? (
                       <span className="block text-xs font-medium text-red-700">Impossible tel quel : {problems.map((p) => p.title).join(" · ")}</span>
                     ) : (
@@ -175,10 +211,10 @@ export function RequestsCard() {
                 </span>
               </span>
               <span className="flex shrink-0 gap-2 pl-6 sm:pl-0">
-                <Button size="sm" onClick={() => answer(r.id, false)}>
+                <Button size="sm" onClick={() => void answer(r.id, false)}>
                   <X size={14} /> Refuser
                 </Button>
-                <Button size="sm" variant="primary" disabled={problems.length > 0} onClick={() => answer(r.id, true)}>
+                <Button size="sm" variant="primary" disabled={problems.length > 0} onClick={() => void answer(r.id, true)}>
                   <Check size={14} /> Accepter
                 </Button>
               </span>
@@ -191,8 +227,80 @@ export function RequestsCard() {
           {all ? "Réduire" : `Voir les ${pending.length - 2} autres demandes`}
         </button>
       )}
+      {waitingPeer > 0 && <p className="mt-1 text-xs text-slate-500">{waitingPeer} échange{waitingPeer > 1 ? "s" : ""} en attente de la réponse d&apos;un collègue (vous le verrez ici ensuite).</p>}
     </Card>
   );
+}
+
+// ---- Créneaux libres proposés à l'équipe --------------------------------------
+
+export function OpenShiftsCard({ week }: { week: string }) {
+  const { state, update } = useApp();
+  const toast = useToast();
+  const list = state.weekMeta?.[week]?.openShifts ?? [];
+  if (!list.length) return null;
+  const name = (id: string) => state.employees.find((e) => e.id === id)?.firstName ?? "?";
+  const post = (id: string) => state.posts.find((p) => p.id === id)?.name ?? "";
+  return (
+    <Card className="p-4">
+      <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+        <Megaphone size={16} className="text-brand-700" /> {list.length} créneau{list.length > 1 ? "x" : ""} proposé{list.length > 1 ? "s" : ""} à l&apos;équipe
+      </div>
+      <ul className="divide-y divide-slate-100">
+        {list.map((o) => {
+          const volunteers = (state.requests ?? []).filter((r) => r.type === "claim" && r.openId === o.id && r.status === "pending");
+          return (
+            <li key={o.id} className="flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center">
+              <span className="flex min-w-0 flex-1 items-start gap-2.5 text-sm">
+                {o.urgent ? <Zap size={16} className="mt-0.5 shrink-0 text-brand-700" /> : <Hand size={16} className="mt-0.5 shrink-0 text-slate-500" />}
+                <span className="min-w-0">
+                  <span className="block">
+                    {o.urgent && <b className="font-semibold text-brand-800">Urgent · </b>}
+                    {DAYS[o.day]} {formatTime(o.start)}–{formatTime(o.end)} · {post(o.postId)}
+                  </span>
+                  <span className="block text-xs text-slate-600">
+                    Proposé à {o.offeredTo.length ? o.offeredTo.map(name).join(", ") : "personne (aucun salarié ne peut le prendre sans enfreindre une règle)"}.{" "}
+                    {volunteers.length ? <b className="font-semibold text-emerald-800">{volunteers.length} volontaire{volunteers.length > 1 ? "s" : ""} : à valider dans les demandes.</b> : "Pas encore de volontaire."}
+                  </span>
+                </span>
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="self-start sm:self-auto"
+                onClick={() => {
+                  update((s) => withdrawOpen(s, week, o.id), { record: true });
+                  toast("Créneau retiré");
+                }}
+              >
+                Retirer
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
+
+/** Propose une place vide (ou un remplacement) à ceux qui peuvent la prendre, et les prévient. */
+export function useOfferShift() {
+  const { update, state, mode, activeId } = useApp();
+  const toast = useToast();
+  return async (week: string, slot: { day: number; start: string; end: string; postId: string; breakMinutes?: number }, opts: { fromShift?: Shift; urgent?: boolean; note?: string } = {}) => {
+    const { open } = offerShift(state, week, slot, opts); // calcul des candidats sur l'état actuel
+    update((s) => {
+      const meta = s.weekMeta?.[week] ?? { status: "draft" as const };
+      const plans = opts.fromShift ? { ...s.plans, [week]: (s.plans[week] ?? []).filter((x) => x.id !== opts.fromShift!.id) } : s.plans;
+      return { ...s, plans, weekMeta: { ...s.weekMeta, [week]: { ...meta, openShifts: [...(meta.openShifts ?? []), open] } } };
+    }, { record: true });
+    if (!open.offeredTo.length) {
+      toast("Personne ne peut le prendre sans enfreindre une règle ou dépasser les heures en plus autorisées (Réglages). Il reste affiché comme libre.");
+      return;
+    }
+    const r = await notifyTeam(mode, { establishmentId: activeId, kind: opts.urgent ? "urgent" : "open", employeeIds: open.offeredTo, detail: `${DAYS[slot.day]} ${formatTime(slot.start)}–${formatTime(slot.end)}` });
+    toast(`Proposé à ${open.offeredTo.length} personne${open.offeredTo.length > 1 ? "s" : ""}. ${notifySummary(r)}`);
+  };
 }
 
 // ---- Chiffre d'affaires prévu et masse salariale ----------------------------
@@ -289,6 +397,7 @@ export type EmptySlot = { day: number; serviceId?: string; postId?: string };
 
 export function WhyEmptyModal({ slot, onClose, shifts, lockedEmployees, onAdd }: { slot: EmptySlot | null; onClose: () => void; shifts: Shift[]; lockedEmployees: string[]; onAdd: (day: number, serviceId: string, postId: string) => void }) {
   const { state } = useApp();
+  const offer = useOfferShift();
   if (!slot) return null;
   const st = forWeek(state, state.currentWeek);
   // Toutes les places manquantes du jour (ou seulement celle demandée)
@@ -315,12 +424,17 @@ export function WhyEmptyModal({ slot, onClose, shifts, lockedEmployees, onAdd }:
                   <li key={i} className="list-disc">{t}</li>
                 ))}
               </ul>
-              <Button size="sm" className="mt-2" onClick={() => (onClose(), onAdd(slot.day, sv.id, p.id))}>
-                Placer quelqu&apos;un quand même
-              </Button>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button size="sm" variant="primary" onClick={() => (onClose(), void offer(state.currentWeek, { day: slot.day, ...svTime(sv, slot.day), postId: p.id, breakMinutes: sv.breakMinutes }))}>
+                  <Megaphone size={14} /> Proposer à l&apos;équipe
+                </Button>
+                <Button size="sm" onClick={() => (onClose(), onAdd(slot.day, sv.id, p.id))}>
+                  Placer quelqu&apos;un quand même
+                </Button>
+              </div>
             </div>
           ))}
-          <p className="text-xs text-slate-500">Pistes : un extra, un renfort d&apos;un autre poste, ou baisser le besoin dans « Besoins ».</p>
+          <p className="text-xs text-slate-500">« Proposer à l&apos;équipe » envoie le créneau aux personnes qui peuvent le prendre sans enfreindre de règle, dans la limite des heures en plus autorisées : vous validez le premier volontaire. Autres pistes : un extra, ou baisser le besoin dans « Besoins ».</p>
         </div>
       )}
     </Modal>

@@ -5,6 +5,15 @@ Je le mets à jour à chaque lot. Coche les cases au fur et à mesure.
 
 ---
 
+## Phase 2 terminée — à faire de ton côté
+
+- [ ] **Si Supabase est déjà en place** : SQL Editor → copier-coller `planning/supabase/migrations/20261124000004_equipe.sql` → Run (« Success »). Sinon, fais-le juste après les 3 premières migrations.
+- [ ] **Notifications du téléphone (gratuites)** : sur ton ordinateur, dans un terminal, tape `npx web-push generate-vapid-keys`. Tu obtiens 2 clés. Sur Vercel → Settings → Environment Variables : `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (Public Key), `VAPID_PRIVATE_KEY` (Private Key, secrète), `VAPID_SUBJECT` = `mailto:` + ton adresse de contact. Ne colle jamais ces clés dans la conversation.
+- [ ] **E-mails (facultatif, gratuit jusqu'à 300/jour)** : compte sur brevo.com → valide une adresse d'expéditeur → crée une clé API. Sur Vercel : `BREVO_API_KEY` (secrète) et `NOTIFY_FROM_EMAIL`. Sans Brevo, seules les notifications du téléphone partent (et WhatsApp reste possible).
+- [ ] **Supabase → Authentication → URL Configuration** : vérifie que `https://ton-site/**` est dans les Redirect URLs (le lien d'invitation des salariés passe par là).
+- [ ] **Teste avec un vrai téléphone** : invite-toi toi-même comme salarié (fiche salarié → « Inviter sur l'application »), ouvre le lien sur ton téléphone, crée l'accès avec une autre adresse e-mail, puis « Ajouter à l'écran d'accueil » et active les notifications.
+- [ ] **Mise à jour de sécurité Next.js** : `npm audit` signale des failles dans la version de Next.js utilisée (dont une sur « use cache », que Quinzo n'utilise pas). Dis-moi si tu veux que je fasse la mise à jour.
+
 ## Phase 1 terminée — à faire de ton côté
 
 - [ ] **Donne-moi l'adresse e-mail** qui doit recevoir les avis (bouton « Donner mon avis »). Conseil : une adresse dédiée (ex. contact@ton-domaine), car elle sera visible dans la démo. Sur Vercel, elle se met dans la variable `NEXT_PUBLIC_FEEDBACK_EMAIL`.

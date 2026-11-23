@@ -21,7 +21,7 @@ import { DayView } from "./DayView";
 import { AlertsPanel } from "./AlertsPanel";
 import { ShiftEditor } from "./ShiftEditor";
 import { flash, shiftsInError } from "./helpers";
-import { FairnessBadge, LaborCard, LockSummary, PublishBar, RegenerateModal, RequestsCard, WhyEmptyModal, type EmptySlot, type RegenMode } from "./WeekTools";
+import { FairnessBadge, LaborCard, LockSummary, OpenShiftsCard, PublishBar, RegenerateModal, RequestsCard, WhyEmptyModal, useOfferShift, type EmptySlot, type RegenMode } from "./WeekTools";
 
 export function PlanningView() {
   const { state, ready, update, setShifts, undo, redo, canUndo, canRedo } = useApp();
@@ -199,6 +199,18 @@ export function PlanningView() {
     toast(`${to?.firstName} remplace ${from?.firstName}`);
   }
 
+  const offer = useOfferShift();
+  /** Absence de dernière minute : le créneau devient libre et est proposé à ceux qui peuvent le prendre. */
+  function urgent(shift: Shift, absence?: AbsenceType) {
+    if (absence) {
+      const date = toISODate(dateOfDay(week, shift.day));
+      update((s) => ({ ...s, absences: [...s.absences, { id: uid("a"), employeeId: shift.employeeId, type: absence, start: date, end: date }] }), { record: false });
+    }
+    setEditing(null);
+    // L'absence doit être prise en compte avant de chercher les candidats
+    setTimeout(() => void offer(week, { day: shift.day, start: shift.start, end: shift.end, postId: shift.postId, breakMinutes: shift.breakMinutes }, { fromShift: shift, urgent: true, note: "remplacement de dernière minute" }), 0);
+  }
+
   function remove(id: string) {
     setShifts(week, (list) => list.filter((x) => x.id !== id));
     setEditing(null);
@@ -295,6 +307,7 @@ export function PlanningView() {
             <PublishBar week={week} shifts={shifts} />
             <AlertsPanel alerts={alerts} onSelect={goToIssue} />
             <RequestsCard />
+            <OpenShiftsCard week={week} />
             <LaborCard week={week} shifts={shifts} />
             <div className="flex flex-wrap items-center gap-2">
               <FairnessBadge week={week} />
@@ -408,6 +421,7 @@ export function PlanningView() {
           onDelete={remove}
           week={week}
           onReplace={(employeeId, absence) => replace(editing.shift, employeeId, absence)}
+          onUrgent={(absence) => urgent(editing.shift, absence)}
         />
       )}
 

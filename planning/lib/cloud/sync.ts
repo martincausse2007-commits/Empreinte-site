@@ -4,7 +4,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppState } from "../types";
-import { CHILD_TABLES, diffRows, fromRows, rowKey, toRows, type ChildTable, type Rows } from "./mapping";
+import { CHILD_TABLES, diffRows, fromRows, readsFromRows, requestsFromRows, rowKey, toRows, type ChildTable, type Rows } from "./mapping";
 
 type Row = Record<string, unknown>;
 
@@ -39,9 +39,29 @@ export async function loadEstablishment(sb: SupabaseClient, est: string, current
   const lists = await Promise.all(CHILD_TABLES.map((t) => fetchAll(sb, t, est)));
   const raw = Object.fromEntries(CHILD_TABLES.map((t, i) => [t, lists[i]])) as Record<ChildTable, Row[]>;
   const rows: Rows = { establishment: e as Row, rules: (r as Row) ?? { establishment_id: est }, ...raw };
-  const state = fromRows(rows, { currentWeek });
+  const state = { ...fromRows(rows, { currentWeek, shareToken: await shareTokenOf(sb, est) }), reads: await loadReads(sb, est) };
   // On garde la version « normalisée » pour comparer ensuite sans faux écarts
   return { state, rows: toRows(state, est) };
+}
+
+/** Jeton du lien de partage de l'équipe (créé au premier besoin). */
+export async function shareTokenOf(sb: SupabaseClient, est: string): Promise<string> {
+  const { data } = await sb.from("share_links").select("token").eq("establishment_id", est).is("revoked_at", null).order("created_at").limit(1);
+  if (data?.[0]?.token) return String(data[0].token);
+  const { data: created } = await sb.from("share_links").insert({ establishment_id: est }).select("token").single();
+  return created?.token ? String(created.token) : "";
+}
+
+export async function loadReads(sb: SupabaseClient, est: string) {
+  const { data, error } = await sb.from("week_reads").select("*").eq("establishment_id", est);
+  if (error) return {};
+  return readsFromRows(data ?? []);
+}
+
+/** Relit ce que l'équipe a pu changer (demandes, accusés de lecture) sans toucher au reste. */
+export async function loadTeamActivity(sb: SupabaseClient, est: string) {
+  const [req, reads] = await Promise.all([fetchAll(sb, "requests", est), loadReads(sb, est)]);
+  return { requests: requestsFromRows(req), reads, requestRows: req };
 }
 
 /** Enregistre les différences entre `prev` et l'état actuel. Renvoie les nouvelles lignes de référence. */
@@ -63,6 +83,10 @@ export async function pushChanges(sb: SupabaseClient, est: string, prev: Rows | 
     if (!t.deletes.length) continue;
     if (t.table === "needs") {
       for (const r of t.deletes) check(await sb.from("needs").delete().match({ establishment_id: est, day: r.day, service_id: r.service_id, post_id: r.post_id }));
+    } else if (t.table === "weeks") {
+      check(await sb.from("weeks").delete().eq("establishment_id", est).in("week", t.deletes.map((r) => rowKey("weeks", r))));
+    } else if (t.table === "requests") {
+      continue; // les demandes de l'équipe ne sont jamais effacées par le gérant (seulement refusées)
     } else {
       const ids = t.deletes.map((r) => rowKey(t.table, r));
       for (let i = 0; i < ids.length; i += 200) check(await sb.from(t.table).delete().eq("establishment_id", est).in("id", ids.slice(i, i + 200)));

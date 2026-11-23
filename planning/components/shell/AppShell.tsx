@@ -23,12 +23,13 @@ const NAV = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
-  const { mode, needsSetup, saveStatus } = useApp();
+  const { mode, needsSetup, saveStatus, isEmployee } = useApp();
   const router = useRouter();
   // Compte tout neuf : direction le questionnaire
   useEffect(() => {
-    if (mode === "cloud" && needsSetup) router.replace("/configuration");
-  }, [mode, needsSetup, router]);
+    // Compte salarié sans commerce à gérer : direction son espace
+    if (mode === "cloud" && needsSetup) router.replace(isEmployee ? "/moi" : "/configuration");
+  }, [mode, needsSetup, isEmployee, router]);
   const isActive = (href: string) => path === href || path.startsWith(href + "/");
 
   return (

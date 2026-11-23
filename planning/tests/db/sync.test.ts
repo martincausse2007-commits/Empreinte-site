@@ -41,12 +41,16 @@ async function roundTrip(state: AppState) {
     const rows = toRows(state, est);
     const { id: _id, ...fields } = rows.establishment; // eslint-disable-line @typescript-eslint/no-unused-vars
     await db.query(`update public.establishments set (${Object.keys(fields).join(",")}) = (select ${Object.keys(fields).join(",")} from json_populate_record(null::public.establishments, $1)) where id = $2`, [JSON.stringify(fields), est]);
-    await db.query("update public.rules r set (rest_days_per_week, consecutive_rest_days, min_rest_hours, max_hours_per_day, max_amplitude_hours, split_shifts, max_splits_per_week, overtime_hours, weekend_fairness) = (select rest_days_per_week, consecutive_rest_days, min_rest_hours, max_hours_per_day, max_amplitude_hours, split_shifts, max_splits_per_week, overtime_hours, weekend_fairness from json_populate_record(null::public.rules, $1)) where establishment_id = $2", [JSON.stringify(rows.rules), est]);
+    const rc = Object.keys(rows.rules).filter((k) => k !== "establishment_id").join(",");
+    await db.query(`update public.rules r set (${rc}) = (select ${rc} from json_populate_record(null::public.rules, $1)) where establishment_id = $2`, [JSON.stringify(rows.rules), est]);
     for (const t of CHILD_TABLES) {
       if (!rows[t].length) continue;
       // Comme l'application : seules les colonnes envoyées sont écrites (les autres prennent leur valeur par défaut)
-      const cols = Object.keys(rows[t][0]).join(",");
-      await db.query(`insert into public.${t} (${cols}) select ${cols} from json_populate_recordset(null::public.${t}, $1)`, [JSON.stringify(rows[t])]);
+      const keys = Object.keys(rows[t][0]);
+      const cols = keys.join(",");
+      // Comme l'application (upsert) : la base a déjà créé les lignes « semaine » des créneaux
+      const upsert = t === "weeks" ? ` on conflict (establishment_id, week) do update set (${cols}) = (select ${keys.map((k) => `excluded.${k}`).join(",")})` : "";
+      await db.query(`insert into public.${t} (${cols}) select ${cols} from json_populate_recordset(null::public.${t}, $1)${upsert}`, [JSON.stringify(rows[t])]);
     }
     const back: Rows = {
       establishment: (await db.query("select * from public.establishments where id = $1", [est])).rows[0],
@@ -57,6 +61,10 @@ async function roundTrip(state: AppState) {
     const iso = (d: unknown) => (d instanceof Date ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : d);
     back.shifts = back.shifts.map((s) => ({ ...s, week: iso(s.week) }));
     back.absences = back.absences.map((a) => ({ ...a, start_date: iso(a.start_date), end_date: iso(a.end_date) }));
+    // Horodatages : texte ISO, comme les renvoie Supabase
+    const ts = (d: unknown) => (d instanceof Date ? d.toISOString() : d);
+    back.weeks = back.weeks.map((w) => ({ ...w, week: iso(w.week), published_at: ts(w.published_at) }));
+    back.requests = back.requests.map((r) => ({ ...r, created_at: ts(r.created_at), answered_at: ts(r.answered_at) }));
     return { est, back };
   });
 }

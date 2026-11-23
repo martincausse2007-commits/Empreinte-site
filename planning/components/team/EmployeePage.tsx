@@ -18,6 +18,7 @@ import { DAYS } from "@/lib/time";
 import { POST_COLORS } from "@/lib/colors";
 import { useBack } from "@/lib/history";
 import { PrefsEditor } from "./PrefsEditor";
+import { AppAccessCard } from "./AppAccessCard";
 import { BackButton, Button, Card, Field, Modal, Stepper, cx, inputClass, useToast } from "@/components/ui";
 
 export function EmployeePage({ id }: { id: string }) {
@@ -77,7 +78,7 @@ function EmployeeForm({ initial, isNew }: { initial: Employee; isNew: boolean })
     set({ unavailability: un });
   }
 
-  const valid = e.firstName.trim() && e.postIds.length > 0;
+  const valid = e.firstName.trim() && e.postIds.length > 0 && (!e.email || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e.email));
 
 
   function save() {
@@ -218,6 +219,8 @@ function EmployeeForm({ initial, isNew }: { initial: Employee; isNew: boolean })
         </div>
       </div>
       </Card>
+
+      <AppAccessCard employee={e} email={e.email ?? ""} onEmail={(v) => set({ email: v || undefined })} isNew={isNew} />
 
       {!isNew && <AbsencesCard employeeId={initial.id} firstName={initial.firstName} />}
 
