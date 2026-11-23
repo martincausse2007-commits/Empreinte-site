@@ -17,6 +17,7 @@ import { isUnavailable } from "@/lib/rules";
 import { DAYS } from "@/lib/time";
 import { POST_COLORS } from "@/lib/colors";
 import { useBack } from "@/lib/history";
+import { PrefsEditor } from "./PrefsEditor";
 import { BackButton, Button, Card, Field, Modal, Stepper, cx, inputClass, useToast } from "@/components/ui";
 
 export function EmployeePage({ id }: { id: string }) {
@@ -181,6 +182,10 @@ function EmployeeForm({ initial, isNew }: { initial: Employee; isNew: boolean })
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 px-4 py-3">
+          <PrefsEditor prefs={e.prefs} services={state.services} onChange={(prefs) => set({ prefs })} />
         </div>
 
         <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3">

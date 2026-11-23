@@ -1,6 +1,7 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { HelpCircle, Lock, Plus } from "lucide-react";
+import type { ReactNode } from "react";
 import type { AppState, Shift } from "@/lib/types";
 import type { Alert } from "@/lib/engine/check";
 import { coverage, getNeed, hoursByEmployee, rulesOf, serviceActive, shiftCoversService, svTime } from "@/lib/rules";
@@ -23,10 +24,15 @@ type Props = {
   onDay: (d: number) => void;
   onEdit: (s: Shift) => void;
   onAddSlot: (day: number, serviceId: string, postId: string) => void;
+  /** Pourquoi une place reste vide. */
+  onWhyEmpty?: (day: number, serviceId: string, postId: string) => void;
+  lockedEmployees?: Set<string>;
+  /** Bloc affiché sous le choix du jour (chiffre d'affaires du jour…). */
+  top?: ReactNode;
 };
 
 /** Vue mobile : un jour à la fois, organisé par service puis par poste. */
-export function DayView({ state, week, shifts, alerts, errorShifts, day, onDay, onEdit, onAddSlot }: Props) {
+export function DayView({ state, week, shifts, alerts, errorShifts, day, onDay, onEdit, onAddSlot, onWhyEmpty, lockedEmployees, top }: Props) {
   const dayShifts = shifts.filter((s) => s.day === day);
   const cov = coverage(forWeek(state, week), shifts);
   const holiday = holidaysInWeek(week).get(day);
@@ -64,6 +70,7 @@ export function DayView({ state, week, shifts, alerts, errorShifts, day, onDay, 
       </div>
 
       <div className="space-y-3">
+        {top}
         {(holiday || absentToday.length > 0) && (
           <Card className="space-y-1 px-4 py-3 text-sm">
             {holiday && (
@@ -113,8 +120,15 @@ export function DayView({ state, week, shifts, alerts, errorShifts, day, onDay, 
                           <span className={cx("h-2 w-2 rounded-full", POST_COLORS[p.color].dot)} />
                           {p.name}
                         </span>
-                        <span className={cx("text-xs font-semibold tabular-nums", missing ? "text-amber-700" : "text-emerald-700")}>
-                          {list.length}/{c?.needed ?? 0}
+                        <span className="flex items-center gap-1">
+                          {missing > 0 && onWhyEmpty && (
+                            <button onClick={() => onWhyEmpty(day, sv.id, p.id)} className="flex h-9 items-center gap-1 rounded-lg px-2 text-xs font-medium text-amber-800 hover:bg-amber-50">
+                              <HelpCircle size={13} /> Pourquoi ?
+                            </button>
+                          )}
+                          <span className={cx("text-xs font-semibold tabular-nums", missing ? "text-amber-700" : "text-emerald-700")}>
+                            {list.length}/{c?.needed ?? 0}
+                          </span>
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -140,6 +154,7 @@ export function DayView({ state, week, shifts, alerts, errorShifts, day, onDay, 
                                 </span>
                               )}
                               {s.extra && <span className="rounded-full bg-slate-100 px-1.5 text-[11px] font-semibold text-slate-700">Renfort</span>}
+                              {(s.locked || lockedEmployees?.has(s.employeeId)) && <Lock size={12} className="text-slate-500" aria-label="Verrouillé" />}
                               {err && <AlertTriangle size={13} className="text-red-600" aria-label="Problème à corriger" />}
                             </button>
                           );

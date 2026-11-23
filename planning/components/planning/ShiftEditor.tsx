@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, Trash2 } from "lucide-react";
+import { AlertTriangle, Lightbulb, Lock, Trash2 } from "lucide-react";
 import type { AppState, Shift } from "@/lib/types";
 import { isUnavailable, serviceActive, shiftHours, svTime } from "@/lib/rules";
 import { computeAlerts } from "@/lib/engine/check";
@@ -12,7 +12,7 @@ import { UserRoundSearch } from "lucide-react";
 import { Avatar } from "../ui";
 import { DAYS, formatHours, formatTime } from "@/lib/time";
 import { POST_COLORS } from "@/lib/colors";
-import { Button, Field, Modal, cx, inputClass } from "../ui";
+import { Button, Field, Modal, Toggle, cx, inputClass } from "../ui";
 
 export function ShiftEditor({
   state,
@@ -77,6 +77,21 @@ export function ShiftEditor({
       }
     >
       <div className="space-y-4">
+        {!isNew && initial.reason && initial.reason.length > 0 && !initial.manual && (
+          <details className="group rounded-xl border border-brand-200 bg-brand-50/60 p-3" open>
+            <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 text-sm font-semibold text-brand-900">
+              <Lightbulb size={16} className="text-brand-700" /> Pourquoi {employee?.firstName} ?
+            </summary>
+            <ul className="mt-1.5 space-y-1 pl-6 text-[13px] text-slate-800">
+              {initial.reason.map((r, i) => (
+                <li key={i} className="list-disc">{r}</li>
+              ))}
+            </ul>
+          </details>
+        )}
+        {!isNew && initial.manual && (
+          <p className="rounded-xl bg-slate-50 px-3 py-2 text-[13px] text-slate-700">Créneau modifié à la main : la régénération le garde tel quel.</p>
+        )}
         <Field label="Employé">
           <select className={inputClass} value={draft.employeeId} onChange={(e) => set({ employeeId: e.target.value })}>
             {state.employees.filter((e) => !e.archived || e.id === draft.employeeId).map((e) => (
@@ -170,6 +185,17 @@ export function ShiftEditor({
             ))}
           </div>
         </Field>
+
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-1">
+          <span className="flex items-center gap-2 text-sm">
+            <Lock size={15} className="text-slate-500" />
+            <span>
+              <span className="block font-medium">Verrouiller ce créneau</span>
+              <span className="block text-xs text-slate-500">« Régénérer » n&apos;y touchera pas.</span>
+            </span>
+          </span>
+          <Toggle checked={!!draft.locked} onChange={(v) => set({ locked: v || undefined })} label="Verrouiller ce créneau" />
+        </div>
 
         {previewErrors.length > 0 && (
           <div className="space-y-1.5 rounded-xl border border-red-300 bg-red-50 p-3" role="alert">

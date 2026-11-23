@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Lock } from "lucide-react";
 import { POST_COLORS } from "@/lib/colors";
 import { formatTime } from "@/lib/time";
 import type { Post, Shift } from "@/lib/types";
@@ -12,6 +12,7 @@ export function ShiftChip({
   showPost,
   error,
   dragging,
+  locked,
   className,
 }: {
   shift: Shift;
@@ -19,6 +20,8 @@ export function ShiftChip({
   showPost?: boolean;
   error?: boolean;
   dragging?: boolean;
+  /** Verrouillé : la régénération n'y touche pas. */
+  locked?: boolean;
   className?: string;
 }) {
   const c = POST_COLORS[post?.color ?? "slate"];
@@ -37,6 +40,7 @@ export function ShiftChip({
         <span className="truncate">
           {formatTime(shift.start)} – {formatTime(shift.end)}
         </span>
+        {(locked ?? shift.locked) && <Lock size={11} className="ml-auto shrink-0 opacity-70" aria-label="Verrouillé" />}
       </div>
       {shift.extra && (
         <div className="mt-0.5 text-[11px] font-semibold">Renfort</div>

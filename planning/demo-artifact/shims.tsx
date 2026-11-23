@@ -19,9 +19,12 @@ const ROUTES: Record<string, string> = {
   heures: "/heures",
   etablissements: "/etablissements",
   "lien-equipe": "/p/demo",
+  salarie: "/salarie",
+  equite: "/heures",
 };
 
 export function toHash(path: string) {
+  if (path === "/heures#equite") return "#equite";
   const [p, query] = path.split("?");
   if (p.startsWith("/p/")) return "#lien-equipe";
   const fiche = p.match(/^\/equipe\/(.+)$/);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -13,7 +13,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { Plus } from "lucide-react";
+import { Lock, LockOpen, Plus } from "lucide-react";
 import type { AbsenceType, AppState, Employee, Shift } from "@/lib/types";
 import { ABSENCE_TYPES, absencesForWeek, expectedHours } from "@/lib/absences";
 import { holidaysInWeek, isHolidayClosed } from "@/lib/holidays";
@@ -34,9 +34,16 @@ type Props = {
   onEdit: (shift: Shift) => void;
   onAdd: (employeeId: string, day: number) => void;
   onMove: (shiftId: string, employeeId: string, day: number, copy: boolean) => void;
+  /** Salariés verrouillés pour la semaine. */
+  lockedEmployees?: Set<string>;
+  onToggleLock?: (employeeId: string) => void;
+  /** Clic sur « N à pourvoir » : pourquoi ces places sont vides. */
+  onMissing?: (day: number) => void;
+  /** Lignes chiffre d'affaires / masse salariale (affichées sous la grille). */
+  footer?: ReactNode;
 };
 
-export function WeekGrid({ state, week, shifts, errorShifts, onEdit, onAdd, onMove }: Props) {
+export function WeekGrid({ state, week, shifts, errorShifts, onEdit, onAdd, onMove, lockedEmployees, onToggleLock, onMissing, footer }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -87,7 +94,9 @@ export function WeekGrid({ state, week, shifts, errorShifts, onEdit, onAdd, onMo
                     {needed === 0 ? (
                       <span className="text-slate-500">Fermé</span>
                     ) : missing > 0 ? (
-                      <span className="rounded-full bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">{missing} à pourvoir</span>
+                      <button onClick={() => onMissing?.(day)} className="rounded-full bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800 underline-offset-2 hover:underline" title="Pourquoi ?">
+                        {missing} à pourvoir · pourquoi ?
+                      </button>
                     ) : (
                       <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-700">Couvert</span>
                     )}
@@ -120,6 +129,8 @@ export function WeekGrid({ state, week, shifts, errorShifts, onEdit, onAdd, onMo
                   onEdit={onEdit}
                   onAdd={onAdd}
                   postOf={postOf}
+                  locked={lockedEmployees?.has(e.id) ?? false}
+                  onToggleLock={onToggleLock}
                 />
               ))}
             </div>
@@ -147,6 +158,7 @@ export function WeekGrid({ state, week, shifts, errorShifts, onEdit, onAdd, onMo
               </div>
             ))}
           </div>
+          {footer}
         </div>
       </div>
       <DragOverlay dropAnimation={{ duration: 160, easing: "ease-out" }}>
@@ -172,8 +184,12 @@ function Row({
   onEdit,
   onAdd,
   postOf,
+  locked,
+  onToggleLock,
 }: {
   cols: string;
+  locked: boolean;
+  onToggleLock?: (employeeId: string) => void;
   absent?: Map<number, AbsenceType>;
   employee: Employee;
   state: AppState;
@@ -195,6 +211,17 @@ function Row({
           </div>
           <HoursMeter hours={hours} contract={Math.round(expectedHours(e, absent, rulesOf(state)) * 10) / 10} compact />
         </div>
+        {onToggleLock && (
+          <button
+            onClick={() => onToggleLock(e.id)}
+            aria-pressed={locked}
+            aria-label={locked ? `Déverrouiller la semaine de ${e.firstName}` : `Verrouiller la semaine de ${e.firstName}`}
+            title={locked ? "Semaine verrouillée : la régénération n'y touche pas" : "Verrouiller sa semaine"}
+            className={cx("-mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", locked ? "bg-brand-50 text-brand-700" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700")}
+          >
+            {locked ? <Lock size={15} /> : <LockOpen size={15} />}
+          </button>
+        )}
       </div>
       {Array.from({ length: 7 }, (_, day) => (
         <Cell
@@ -209,6 +236,7 @@ function Row({
           onEdit={onEdit}
           onAdd={onAdd}
           postOf={postOf}
+          rowLocked={locked}
         />
       ))}
     </div>
@@ -226,7 +254,9 @@ function Cell({
   onEdit,
   onAdd,
   postOf,
+  rowLocked,
 }: {
+  rowLocked: boolean;
   absence?: AbsenceType;
   employee: Employee;
   day: number;
@@ -265,6 +295,7 @@ function Cell({
               showPost={s.postId !== e.postIds[0]}
               error={errorShifts.has(s.id)}
               hidden={activeId === s.id}
+              locked={rowLocked || !!s.locked}
               onClick={() => onEdit(s)}
             />
           ))}
@@ -293,8 +324,10 @@ function DraggableShift({
   showPost,
   error,
   hidden,
+  locked,
   onClick,
 }: {
+  locked: boolean;
   shift: Shift;
   post?: AppState["posts"][number];
   showPost: boolean;
@@ -312,7 +345,7 @@ function DraggableShift({
       onClick={onClick}
       className={cx("relative z-[1] block w-full cursor-grab touch-manipulation active:cursor-grabbing", hidden && "opacity-30")}
     >
-      <ShiftChip shift={shift} post={post} showPost={showPost} error={error} />
+      <ShiftChip shift={shift} post={post} showPost={showPost} error={error} locked={locked} />
     </button>
   );
 }

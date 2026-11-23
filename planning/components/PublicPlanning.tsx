@@ -16,7 +16,12 @@ export function PublicPlanning({ token }: { token: string }) {
   const [week, setWeek] = useState<string | null>(null);
   const [me, setMe] = useState<string>("");
   const w = week ?? state.currentWeek;
-  const shifts = useMemo(() => state.plans[w] ?? [], [state.plans, w]);
+  // L'équipe ne voit que la version publiée (jamais le brouillon en cours)
+  const meta = state.weekMeta?.[w];
+  const shifts = useMemo(() => {
+    if (!state.weekMeta) return state.plans[w] ?? []; // comptes sans publication (avant la phase 2)
+    return meta?.status === "published" ? (meta.snapshot ?? []) : [];
+  }, [state.weekMeta, state.plans, meta, w]);
   const hours = hoursByEmployee(shifts);
   const emp = (id: string) => state.employees.find((e) => e.id === id);
   const post = (id: string) => state.posts.find((p) => p.id === id);
@@ -62,6 +67,9 @@ export function PublicPlanning({ token }: { token: string }) {
       )}
 
       {shifts.length === 0 && <p className="rounded-xl bg-white p-6 text-center text-sm text-slate-500">Le planning de cette semaine n&apos;est pas encore publié.</p>}
+      {shifts.length > 0 && meta?.publishedAt && (
+        <p className="mb-3 text-xs text-slate-500">Publié le {new Date(meta.publishedAt).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}.</p>
+      )}
 
       <div className="space-y-3">
         {shifts.length > 0 &&

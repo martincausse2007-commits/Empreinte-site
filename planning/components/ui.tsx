@@ -59,8 +59,8 @@ export function Avatar({ id, name, size = 32 }: { id: string; name: string; size
   );
 }
 
-export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cx("rounded-2xl border border-slate-200/80 bg-white shadow-xs", className)}>{children}</div>;
+export function Card({ className, children, id }: { className?: string; children: ReactNode; id?: string }) {
+  return <div id={id} className={cx("rounded-2xl border border-slate-200/80 bg-white shadow-xs", className)}>{children}</div>;
 }
 
 export function Stepper({ value, onChange, min = 0, max = 99 }: { value: number; onChange: (v: number) => void; min?: number; max?: number }) {

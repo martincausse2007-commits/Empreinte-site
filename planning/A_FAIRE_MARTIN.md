@@ -5,6 +5,13 @@ Je le mets à jour à chaque lot. Coche les cases au fur et à mesure.
 
 ---
 
+## Phase 1 terminée — à faire de ton côté
+
+- [ ] **Donne-moi l'adresse e-mail** qui doit recevoir les avis (bouton « Donner mon avis »). Conseil : une adresse dédiée (ex. contact@ton-domaine), car elle sera visible dans la démo. Sur Vercel, elle se met dans la variable `NEXT_PUBLIC_FEEDBACK_EMAIL`.
+- [ ] **Délai de prévenance** : Réglages → « Délai de prévenance ». Valeurs par défaut : 7 jours (temps partiel, jours ouvrés) et 7 jours (temps plein). Fais-les confirmer par ton comptable pour ta convention.
+- [ ] **Charges patronales** : Réglages → « Masse salariale ». Demande le bon pourcentage à ton comptable (0 % = salaires bruts seuls).
+- [ ] À savoir : les verrous, préférences, publications, demandes de l'équipe et le CA prévu fonctionnent dans la **démo** (navigateur). Ils seront enregistrés dans Supabase à la **phase 2** (une 4ᵉ migration à copier-coller).
+
 ## À regarder tout de suite
 
 - [ ] **Nouvelle page d'accueil** et **nouvelle accroche** : dis-moi si elles te plaisent (voir les autres propositions d'accroche dans la conversation).

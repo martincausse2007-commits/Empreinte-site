@@ -24,6 +24,7 @@ import {
   Users,
   Briefcase,
   CalendarOff,
+  BellRing,
 } from "lucide-react";
 import { ISSUE_LABELS, type Issue, type IssueKind } from "@/lib/engine/check";
 import { cx } from "../ui";
@@ -47,6 +48,7 @@ const ICONS: Record<IssueKind, typeof Clock> = {
   weekend: Sun,
   uncovered: Users,
   absence: CalendarOff,
+  notice: BellRing,
 };
 
 export function AlertsPanel({ alerts, onSelect }: { alerts: Issue[]; onSelect?: (a: Issue) => void }) {

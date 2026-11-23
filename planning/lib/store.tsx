@@ -14,6 +14,7 @@ import { getSupabase } from "./supabase/client";
 import { createEstablishmentFrom, listEstablishments, loadEstablishment, pushChanges } from "./cloud/sync";
 import type { Rows } from "./cloud/mapping";
 import { addWeeks, mondayOf } from "./time";
+import { changeText, diffWeek } from "./publish";
 
 const LEGACY_KEY = "planning-demo-state"; // ancienne démo (un seul établissement)
 const KEY = "quinzo-demo-v2";
@@ -380,7 +381,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setShifts = useCallback(
     (week: string, fn: (shifts: Shift[]) => Shift[]) => {
       remember();
-      setState((s) => ({ ...s, plans: { ...s.plans, [week]: fn(s.plans[week] ?? []) } }));
+      setState((s) => {
+        const before = s.plans[week] ?? [];
+        const after = fn(before);
+        // Semaine déjà publiée : chaque changement est noté dans l'historique
+        const meta = s.weekMeta?.[week];
+        let weekMeta = s.weekMeta;
+        if (meta?.status === "published") {
+          const at = new Date().toISOString();
+          const added = diffWeek(before, after).map((c) => ({ at, employeeId: c.employeeId, text: changeText(c) }));
+          if (added.length) weekMeta = { ...weekMeta, [week]: { ...meta, changes: [...(meta.changes ?? []), ...added].slice(-300) } };
+        }
+        return { ...s, plans: { ...s.plans, [week]: after }, weekMeta };
+      });
     },
     [remember],
   );

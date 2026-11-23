@@ -2,8 +2,9 @@
 
 // Compteurs d'heures par salarié (semaine ou mois), coût estimé et export pour le comptable.
 
-import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, FileSpreadsheet, FileText } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Scale } from "lucide-react";
+import { fairnessTable } from "@/lib/fairness";
 import { useApp } from "@/lib/store";
 import { MONTHS_FR, monthCounters, weekCounters, type Counter } from "@/lib/counters";
 import { download, monthSheet, toCSV, toXlsx } from "@/lib/export";
@@ -148,7 +149,70 @@ export default function HoursPage() {
         </div>
         <p className="mt-3 text-xs text-slate-600">Le planning en PDF A4 reste disponible dans « Partage ».</p>
       </Card>
+
+      <FairnessCard />
     </div>
+  );
+}
+
+/** Équité sur plusieurs semaines : week-ends, fermetures, coupures. */
+function FairnessCard() {
+  const { state } = useApp();
+  // Arrivée depuis le badge « Équité » du planning : on descend jusqu'au tableau
+  useEffect(() => {
+    if (!/equite$/.test(window.location.hash)) return;
+    const t = setTimeout(() => document.getElementById("equite")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+    return () => clearTimeout(t);
+  }, []);
+  const f = fairnessTable(state, state.currentWeek);
+  const max = (k: "weekends" | "closings" | "splits") => Math.max(1, ...f.rows.map((r) => r.total[k]));
+  const cols = [
+    { k: "weekends" as const, label: "Week-ends" },
+    { k: "closings" as const, label: "Fermetures" },
+    { k: "splits" as const, label: "Coupures" },
+  ];
+  return (
+    <Card id="equite" className="mt-4 scroll-mt-20 p-5">
+      <div className="mb-1 flex flex-wrap items-center gap-2">
+        <h2 className="flex items-center gap-2 font-semibold">
+          <Scale size={17} className="text-slate-500" /> Équité
+        </h2>
+        <span className={cx("rounded-full px-2 py-0.5 text-xs font-medium", f.level === "ok" ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900")}>{f.level === "ok" ? "Équilibré" : "À surveiller"}</span>
+      </div>
+      <p className="mb-3 text-sm text-slate-600">
+        Sur {f.weeks ? `les ${f.weeks + 1} dernières semaines` : "cette semaine"} (semaine affichée comprise). Le générateur s&apos;en sert pour répartir les week-ends, les fermetures et les coupures.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[420px] text-sm">
+          <thead>
+            <tr className="text-left text-xs text-slate-500">
+              <th className="py-1.5 font-medium">Salarié</th>
+              {cols.map((c) => (
+                <th key={c.k} className="py-1.5 font-medium">{c.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {f.rows.map((r) => (
+              <tr key={r.employee.id}>
+                <td className="py-2 pr-3 font-medium whitespace-nowrap">{r.employee.firstName}</td>
+                {cols.map((c) => (
+                  <td key={c.k} className="py-2 pr-3">
+                    <span className="flex items-center gap-2">
+                      <span className="w-5 text-right tabular-nums">{r.total[c.k]}</span>
+                      <span className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
+                        <span className="block h-full rounded-full bg-brand-500" style={{ width: `${(r.total[c.k] / max(c.k)) * 100}%` }} />
+                      </span>
+                    </span>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-2 text-xs text-slate-500">Une personne à temps partiel en fait logiquement moins : la comparaison en tient compte.</p>
+    </Card>
   );
 }
 

@@ -29,6 +29,10 @@ export const DEFAULT_RULES: Rules = {
   maxSplitsPerWeek: 2,
   overtimeHours: 0,
   weekendFairness: true,
+  noticePartTimeDays: 7,
+  noticeFullTimeDays: 7,
+  laborTargetPercent: 30,
+  employerChargesPercent: 0,
 };
 
 const r = (start: string, end: string): TimeRange => ({ start, end });

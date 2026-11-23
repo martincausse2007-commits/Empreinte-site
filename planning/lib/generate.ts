@@ -12,7 +12,8 @@
 //    placer (services les plus chargés) au lieu de les ignorer.
 
 import type { AppState, Employee, Service, Shift } from "./types";
-import { absRange, getNeed, isUnavailable, rulesOf, serviceActive, shiftHours, svTime } from "./rules";
+import { absRange, getNeed, isUnavailable, rulesOf, serviceActive, shiftCoversService, shiftHours, svTime } from "./rules";
+import { history, isClosing } from "./fairness";
 import { checkEmployee, type Issue } from "./engine/check";
 import { DAYS, addWeeks } from "./time";
 import { absencesForWeek, expectedHours } from "./absences";
@@ -25,7 +26,23 @@ type GenState = Pick<AppState, "employees" | "services" | "posts" | "needs" | "r
 let counter = 0;
 const newId = () => `g${Date.now().toString(36)}${(counter++).toString(36)}`;
 
-export type GenerateResult = { shifts: Shift[]; unfilled: number; filled: number };
+export type GenerateResult = {
+  shifts: Shift[];
+  unfilled: number;
+  filled: number;
+  /** Places restées vides (pour expliquer pourquoi). */
+  unfilledSlots: { day: number; serviceId: string; postId: string }[];
+};
+
+export type GenerateOptions = {
+  seed?: number;
+  /** Créneaux gardés tels quels (verrouillés, faits à la main, autres jours…). */
+  fixed?: Shift[];
+  /** Ne remplir qu'un seul jour (0 = lundi). */
+  onlyDay?: number;
+  /** Salariés verrouillés : on ne leur ajoute rien. */
+  lockedEmployees?: string[];
+};
 
 function slotsOf(state: GenState): Slot[] {
   const slots: Slot[] = [];
@@ -65,7 +82,7 @@ function hardIds(state: GenState, e: Employee, mine: Shift[]): Set<string> {
 }
 
 /** Choisit pour chacun deux jours de repos à la suite (si demandé). */
-function planRestDays(state: GenState, slots: Slot[], seed: number): Map<string, Set<number>> {
+function planRestDays(state: GenState, slots: Slot[], seed: number, weekendsDone: (e: Employee) => number): Map<string, Set<number>> {
   const rules = rulesOf(state);
   const rest = new Map<string, Set<number>>();
   if (!rules.consecutiveRestDays || rules.restDaysPerWeek < 2) return rest;
@@ -94,7 +111,7 @@ function planRestDays(state: GenState, slots: Slot[], seed: number): Map<string,
         const already = offCount.get(`${post}|${x}`) ?? 0;
         // Coût = demande du jour rapportée aux personnes encore disponibles
         cost += (demand(post, x) + 0.5) / Math.max(0.5, available(x) - already);
-        if (x >= 5 && rules.weekendFairness) cost -= e.weekendHistory * 0.8; // ceux qui ont beaucoup donné ont plus de chances d'avoir leur week-end
+        if (x >= 5 && rules.weekendFairness) cost -= weekendsDone(e) * 1.2; // ceux qui ont beaucoup donné ont plus de chances d'avoir leur week-end
       }
       cost += (((d * 7 + seed * 13 + e.id.length) % 11) / 11) * 0.05; // départage
       if (cost < bestCost) {
@@ -108,14 +125,31 @@ function planRestDays(state: GenState, slots: Slot[], seed: number): Map<string,
   return rest;
 }
 
-export function generateWeek(state0: GenState, opts: { seed?: number } = {}): GenerateResult {
+export function generateWeek(state0: GenState, opts: GenerateOptions = {}): GenerateResult {
   const state = { ...weekState(state0), employees: state0.employees.filter((e) => !e.archived) };
   const seed = opts.seed ?? 0;
   const rules = rulesOf(state);
-  const slots = slotsOf(state);
+  const fixed = opts.fixed ?? [];
+  const locked = new Set(opts.lockedEmployees ?? []);
+  // Équité : ce que chacun a fait les semaines précédentes (week-ends, fermetures, coupures)
+  const past = state0.plans && state0.currentWeek ? history({ services: state.services, plans: state0.plans, employees: state0.employees }, state0.currentWeek) : {};
+  const pastOf = (e: Employee) => past[e.id] ?? { weekends: e.weekendHistory, closings: 0, splits: 0, weeks: 0 };
+  // On compare chacun à la moyenne de l'équipe (et par semaine), pour ne pas surpondérer un historique court
+  const team = state.employees.map(pastOf);
+  const avg = (k: "weekends" | "closings" | "splits") => team.reduce((a, x) => a + x[k], 0) / Math.max(1, team.length);
+  const per = (e: Employee, k: "weekends" | "closings" | "splits") => (pastOf(e)[k] - avg(k)) / Math.max(1, pastOf(e).weeks);
+  // Places à pourvoir, moins celles déjà tenues par les créneaux gardés
+  const slots = slotsOf(state).filter((sl) => opts.onlyDay === undefined || sl.day === opts.onlyDay);
+  for (const f of fixed) {
+    const i = slots.findIndex((sl) => sl.day === f.day && sl.postId === f.postId && shiftCoversService(f, sl.service));
+    if (i >= 0) slots.splice(i, 1);
+  }
   const total = slots.length;
-  const restPlan = planRestDays(state, slots, seed);
-  const shifts: Shift[] = [];
+  const restPlan = planRestDays(state, slots, seed, (e) => pastOf(e).weekends);
+  // Jours déjà tenus par les créneaux gardés : ils ne sont pas des jours de repos
+  for (const f of fixed) restPlan.get(f.employeeId)?.delete(f.day);
+  const shifts: Shift[] = [...fixed];
+  const postName = (id: string) => state.posts.find((p) => p.id === id)?.name ?? "";
 
   const mineOf = (e: Employee) => shifts.filter((s) => s.employeeId === e.id);
   const hours = (e: Employee) => mineOf(e).reduce((a, s) => a + shiftHours(s), 0);
@@ -127,6 +161,7 @@ export function generateWeek(state0: GenState, opts: { seed?: number } = {}): Ge
   }
 
   function canTake(e: Employee, slot: Slot, respectRest: boolean): boolean {
+    if (locked.has(e.id)) return false;
     if (!e.postIds.includes(slot.postId)) return false;
     if (respectRest && restPlan.get(e.id)?.has(slot.day)) return false;
     // Même personne deux fois sur le même créneau : non
@@ -142,7 +177,18 @@ export function generateWeek(state0: GenState, opts: { seed?: number } = {}): Ge
     sc += e.postIds[0] === slot.postId ? 0 : 3;
     // Coupures fréquentes : on regroupe sur une même journée (libère des jours)
     if (days.has(slot.day)) sc += rules.splitShifts === "often" ? -2 : 1;
-    if (rules.weekendFairness && slot.day >= 5) sc += (e.weekendHistory + weekendDays(e)) * 1.5;
+    if (rules.weekendFairness && slot.day >= 5) sc += (pastOf(e).weekends + weekendDays(e)) * 1.5;
+    // Fermetures et coupures réparties équitablement sur plusieurs semaines (écart à la moyenne)
+    if (rules.weekendFairness && isClosing(state, slot)) sc += per(e, "closings") * 0.6;
+    if (days.has(slot.day)) sc += per(e, "splits") * 0.4;
+    // Seconde passe : éviter de casser des jours de repos à la suite
+    if (rules.consecutiveRestDays && rules.restDaysPerWeek >= 2 && !days.has(slot.day)) {
+      const off = [0, 1, 2, 3, 4, 5, 6].filter((d) => d !== slot.day && !days.has(d));
+      if (!off.some((d) => off.includes((d + 1) % 7))) sc += 6;
+    }
+    // Préférences du salarié (souhaits, pas des obligations)
+    const pref = e.prefs?.preferredServices ?? [];
+    if (pref.length) sc += pref.includes(slot.service.id) ? -2.5 : 1;
     if (seed) sc += (((e.id.charCodeAt(e.id.length - 1) * 31 + slot.day * 7 + seed * 13) % 17) / 17) * 2;
     return sc;
   }
@@ -169,7 +215,7 @@ export function generateWeek(state0: GenState, opts: { seed?: number } = {}): Ge
         continue;
       }
       const chosen = bestCandidates.map((e) => ({ e, sc: score(e, slot) })).sort((a, b) => a.sc - b.sc)[0].e;
-      shifts.push({ ...candidate(chosen, slot), id: newId() });
+      shifts.push({ ...candidate(chosen, slot), id: newId(), reason: reasonsFor(chosen, slot, bestCandidates.length - 1) });
     }
     remaining = left;
   }
@@ -181,9 +227,10 @@ export function generateWeek(state0: GenState, opts: { seed?: number } = {}): Ge
   for (const slot of remaining) {
     let done = false;
     for (const e of state.employees) {
-      if (done || !e.postIds.includes(slot.postId)) continue;
+      if (done || locked.has(e.id) || !e.postIds.includes(slot.postId)) continue;
       for (const s of mineOf(e)) {
-        const others = state.employees.filter((o) => o.id !== e.id && o.postIds.includes(s.postId));
+        if (s.locked || s.manual || fixed.includes(s)) continue; // on ne touche pas aux créneaux gardés
+        const others = state.employees.filter((o) => o.id !== e.id && !locked.has(o.id) && o.postIds.includes(s.postId));
         const without = shifts.filter((x) => x.id !== s.id);
         // e peut-il prendre la place vide une fois libéré de s ?
         const eMine = without.filter((x) => x.employeeId === e.id);
@@ -194,8 +241,8 @@ export function generateWeek(state0: GenState, opts: { seed?: number } = {}): Ge
         });
         if (!taker) continue;
         const i = shifts.findIndex((x) => x.id === s.id);
-        shifts[i] = { ...s, employeeId: taker.id };
-        shifts.push({ ...candidate(e, slot), id: newId() });
+        shifts[i] = { ...s, employeeId: taker.id, reason: [`Reprend ce créneau pour libérer ${e.firstName}, seul·e à pouvoir tenir une autre place`, "Disponible, repos et règles respectés"] };
+        shifts.push({ ...candidate(e, slot), id: newId(), reason: [`Seule personne possible pour ce créneau (${postName(slot.postId)})`, `Un de ses créneaux a été confié à ${taker.firstName} pour le permettre`, "Disponible, repos et règles respectés"] });
         done = true;
         break;
       }
@@ -204,8 +251,118 @@ export function generateWeek(state0: GenState, opts: { seed?: number } = {}): Ge
   }
   remaining = unresolved;
 
+  // 4. Repos à la suite : si quelqu'un n'a plus deux jours de repos collés, on confie
+  // un de ses jours (bien choisi) à des collègues qui peuvent le prendre sans rien casser.
+  if (rules.consecutiveRestDays && rules.restDaysPerWeek >= 2) {
+    const breaks = (e: Employee, list: Shift[]) => {
+      const days = new Set(list.filter((x) => x.employeeId === e.id).map((x) => x.day));
+      const off = [0, 1, 2, 3, 4, 5, 6].filter((d) => !days.has(d));
+      return off.length >= 2 && !off.some((d) => off.includes((d + 1) % 7));
+    };
+    for (const e of state.employees) {
+      if (locked.has(e.id) || !breaks(e, shifts)) continue;
+      const days = [...new Set(mineOf(e).map((x) => x.day))];
+      // Jours qui, libérés, colleraient à un jour de repos
+      const candidates = days.filter((d) => !days.includes((d + 6) % 7) || !days.includes((d + 1) % 7));
+      for (const d of candidates) {
+        const moving = mineOf(e).filter((x) => x.day === d);
+        if (moving.some((x) => x.locked || x.manual || fixed.includes(x))) continue;
+        const plan: [Shift, Employee][] = [];
+        let trial = shifts.filter((x) => !moving.includes(x));
+        let ok = true;
+        for (const m of moving) {
+          const taker = state.employees.find((o) => {
+            if (o.id === e.id || locked.has(o.id) || !o.postIds.includes(m.postId)) return false;
+            const oMine = trial.filter((x) => x.employeeId === o.id);
+            if (hardIds(state, o, [...oMine, { ...m, employeeId: o.id }]).size) return false;
+            const wasBroken = breaks(o, trial);
+            return wasBroken || !breaks(o, [...trial, { ...m, employeeId: o.id }]);
+          });
+          if (!taker) {
+            ok = false;
+            break;
+          }
+          plan.push([m, taker]);
+          trial = [...trial, { ...m, employeeId: taker.id }];
+        }
+        if (!ok || breaks(e, trial)) continue;
+        for (const [m, o] of plan) {
+          const i = shifts.indexOf(m);
+          shifts[i] = { ...m, employeeId: o.id, reason: [`Reprend ce créneau pour laisser à ${e.firstName} deux jours de repos à la suite`, "Disponible, repos et règles respectés"] };
+        }
+        break;
+      }
+    }
+  }
+
   shifts.sort((a, b) => a.day - b.day || absRange(a)[0] - absRange(b)[0]);
-  return { shifts, unfilled: remaining.length, filled: total - remaining.length };
+  return {
+    shifts,
+    unfilled: remaining.length,
+    filled: total - remaining.length,
+    unfilledSlots: remaining.map((r) => ({ day: r.day, serviceId: r.service.id, postId: r.postId })),
+  };
+
+  /** « Pourquoi lui ? » : les raisons du choix, en mots simples. */
+  function reasonsFor(e: Employee, slot: Slot, others: number): string[] {
+    const r: string[] = [];
+    const target = expectedHours(e, absentOf(state, e), rules);
+    const missing = target - hours(e);
+    r.push(e.postIds[0] === slot.postId ? `Poste principal : ${postName(slot.postId)}` : `Sait aussi tenir le poste ${postName(slot.postId)}`);
+    if (missing > 0.5) r.push(`Encore ${fmtH(missing)} à faire sur ses ${fmtH(target)}${target < e.contractHours ? " (absences déduites)" : " de contrat"}`);
+    if (e.prefs?.preferredServices?.includes(slot.service.id)) r.push(`Préfère le créneau « ${slot.service.name} »`);
+    const h = pastOf(e);
+    if (rules.weekendFairness && slot.day >= 5) {
+      const n = h.weeks || 4;
+      r.push(h.weekends === 0 ? `Aucun week-end travaillé sur les ${n} dernières semaines` : `${h.weekends} week-end${h.weekends > 1 ? "s" : ""} travaillé${h.weekends > 1 ? "s" : ""} sur les ${n} dernières semaines`);
+    }
+    if (rules.weekendFairness && isClosing(state, slot)) r.push(`${h.closings} fermeture${h.closings > 1 ? "s" : ""} ces dernières semaines`);
+    if (daysWorked(e).has(slot.day) && rules.splitShifts === "often") r.push("Déjà là ce jour-là : une coupure plutôt qu'un jour de travail en plus");
+    r.push(others > 0 ? `${others} autre${others > 1 ? "s" : ""} personne${others > 1 ? "s" : ""} possible${others > 1 ? "s" : ""}, choisi·e en priorité` : "Seule personne disponible pour ce créneau");
+    r.push("Disponible, repos et règles respectés");
+    return r;
+  }
+}
+
+/**
+ * Pourquoi une place reste vide : pour chaque personne qui tient ce poste,
+ * ce qui l'empêche de la prendre.
+ */
+export function explainUnfilled(state0: GenState, shifts: Shift[], day: number, serviceId: string, postId: string, lockedEmployees: string[] = []): string[] {
+  const state = { ...weekState(state0), employees: state0.employees.filter((e) => !e.archived) };
+  const sv = state.services.find((x) => x.id === serviceId);
+  const post = state.posts.find((p) => p.id === postId)?.name ?? "ce poste";
+  if (!sv) return [];
+  const qualified = state.employees.filter((e) => e.postIds.includes(postId));
+  if (!qualified.length) return [`Personne n'a le poste « ${post} » dans sa fiche. Ajoutez-le à quelqu'un dans Équipe.`];
+  const t = svTime(sv, day);
+  const LABEL: Partial<Record<string, string>> = {
+    unavailable: "indisponible à ces horaires",
+    absence: "absent·e ce jour-là",
+    overlap: "travaille déjà à ces horaires",
+    dailyRest: "n'aurait pas ses 11 h de repos",
+    weeklyRest: "n'aurait pas 35 h de repos d'affilée",
+    restDays: "n'aurait plus ses jours de repos",
+    dayHours: "journée trop longue",
+    weekHours: "dépasserait 48 h dans la semaine",
+    amplitude: "amplitude de la journée trop grande",
+    split: "coupure non autorisée",
+    pause: "pas de pause possible",
+    contractOver: "dépasserait son contrat",
+  };
+  const out = qualified.map((e) => {
+    if (lockedEmployees.includes(e.id)) return `${e.firstName} : semaine verrouillée`;
+    const mine = shifts.filter((s) => s.employeeId === e.id);
+    const same = mine.find((s) => s.day === day && s.start === t.start);
+    if (same) return `${e.firstName} : travaille déjà sur ce créneau${same.postId !== postId ? ` (poste ${state.posts.find((p) => p.id === same.postId)?.name ?? ""})` : ""}`;
+    const cand: Shift = { id: "explication", employeeId: e.id, day, start: t.start, end: t.end, postId, ...(sv.breakMinutes ? { breakMinutes: sv.breakMinutes } : {}) };
+    const opt = { prev: prevOf(state, e), hardOnly: true, absent: absentOf(state, e) };
+    const before = new Set(checkEmployee(state, e, mine, opt).map((i) => i.id));
+    const blocking = checkEmployee(state, e, [...mine, cand], opt).filter((i) => !before.has(i.id));
+    if (!blocking.length) return `${e.firstName} : possible (place à donner à la main)`;
+    return `${e.firstName} : ${[...new Set(blocking.map((i) => LABEL[i.kind] ?? i.title.toLowerCase()))].join(", ")}`;
+  });
+  return out;
 }
 
 // ---- Renforts ------------------------------------------------------------------

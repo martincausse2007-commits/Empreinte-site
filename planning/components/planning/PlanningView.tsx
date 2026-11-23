@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, ChevronLeft, ChevronRight, Copy, LayoutTemplate, Loader2, MoreHorizontal, Plus, Redo2, Share2, Sparkles, Trash2, Undo2, UserPlus } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Copy, Eye, LayoutTemplate, Loader2, MoreHorizontal, Plus, Redo2, RefreshCw, Share2, Sparkles, Trash2, Undo2, UserPlus } from "lucide-react";
 import { uid, useApp } from "@/lib/store";
 import type { Shift } from "@/lib/types";
 import { serviceActive, svTime } from "@/lib/rules";
@@ -11,7 +11,7 @@ import { applyReinforcements, generateWeek, suggestReinforcements } from "@/lib/
 import type { Issue } from "@/lib/engine/check";
 import type { AbsenceType, Template } from "@/lib/types";
 import { applyTemplate, copyWeek } from "@/lib/templates";
-import { addWeeks, dateOfDay, formatHours, formatTime, formatWeekRange, isoWeekNumber, toISODate } from "@/lib/time";
+import { DAYS as DAYS_LONG, addWeeks, dateOfDay, formatHours, formatTime, formatWeekRange, isoWeekNumber, toISODate } from "@/lib/time";
 import { shiftHours } from "@/lib/rules";
 import { Button, Card, Modal, buttonClass, cx, useConfirm, useToast } from "../ui";
 import { useRouter } from "next/navigation";
@@ -21,6 +21,7 @@ import { DayView } from "./DayView";
 import { AlertsPanel } from "./AlertsPanel";
 import { ShiftEditor } from "./ShiftEditor";
 import { flash, shiftsInError } from "./helpers";
+import { FairnessBadge, LaborCard, LockSummary, PublishBar, RegenerateModal, RequestsCard, WhyEmptyModal, type EmptySlot, type RegenMode } from "./WeekTools";
 
 export function PlanningView() {
   const { state, ready, update, setShifts, undo, redo, canUndo, canRedo } = useApp();
@@ -41,6 +42,26 @@ export function PlanningView() {
   const [mobileView, setMobileView] = useState<"day" | "week">("day");
   const [day, setDay] = useState(1);
   const [seed, setSeed] = useState(0);
+  const [regenOpen, setRegenOpen] = useState(false);
+  const [whyEmpty, setWhyEmpty] = useState<EmptySlot | null>(null);
+  const lockedList = useMemo(() => state.weekMeta?.[week]?.lockedEmployees ?? [], [state.weekMeta, week]);
+  const lockedEmployees = useMemo(() => new Set(lockedList), [lockedList]);
+  const kept = {
+    locked: shifts.filter((s) => s.locked && !lockedEmployees.has(s.employeeId)).length,
+    manual: shifts.filter((s) => s.manual && !s.locked && !lockedEmployees.has(s.employeeId)).length,
+    people: lockedList.length,
+  };
+
+  function toggleLockEmployee(id: string) {
+    const e = state.employees.find((x) => x.id === id);
+    const on = !lockedEmployees.has(id);
+    update((s) => {
+      const m = s.weekMeta?.[week] ?? { status: "draft" as const };
+      const list = m.lockedEmployees ?? [];
+      return { ...s, weekMeta: { ...s.weekMeta, [week]: { ...m, lockedEmployees: on ? [...list, id] : list.filter((x) => x !== id) } } };
+    }, { record: true });
+    toast(on ? `Semaine de ${e?.firstName} verrouillée` : `Semaine de ${e?.firstName} déverrouillée`);
+  }
 
   const goWeek = (n: number) => update((s) => ({ ...s, currentWeek: addWeeks(s.currentWeek, n) }));
 
@@ -69,7 +90,7 @@ export function PlanningView() {
   const [showReinf, setShowReinf] = useState(false);
 
   function addReinforcements(list = reinforcements) {
-    setShifts(week, (cur) => applyReinforcements(cur, list));
+    setShifts(week, (cur) => applyReinforcements(cur, list).map((s) => (list.some((r) => r.shift.id === s.id) ? { ...s, manual: true, reason: undefined } : s)));
     toast(list.length > 1 ? `${list.length} renforts ajoutés` : "Renfort ajouté");
   }
 
@@ -91,34 +112,32 @@ export function PlanningView() {
     [shifts],
   );
 
-  function runGenerate() {
+  function runGenerate(mode: RegenMode = { kind: "all" }) {
+    setRegenOpen(false);
     setGenerating(true);
     const t0 = performance.now();
     setTimeout(() => {
-      const res = generateWeek(state, { seed });
+      const keepOf = (s: Shift) =>
+        mode.kind === "all" ? false : mode.kind === "day" ? s.day !== mode.day || !!s.locked || lockedEmployees.has(s.employeeId) : !!s.locked || !!s.manual || lockedEmployees.has(s.employeeId);
+      const fixed = shifts.filter(keepOf);
+      const res = generateWeek(state, {
+        seed,
+        fixed,
+        onlyDay: mode.kind === "day" ? mode.day : undefined,
+        lockedEmployees: mode.kind === "all" ? [] : lockedList,
+      });
       setSeed((x) => x + 1);
       setShifts(week, () => res.shifts);
       setGenerating(false);
       const ms = Math.max(1, Math.round(performance.now() - t0 - 450));
-      toast(
-        res.unfilled
-          ? `Semaine générée : ${res.filled} créneaux, ${res.unfilled} impossible${res.unfilled > 1 ? "s" : ""} à pourvoir`
-          : `Semaine générée : ${res.filled} créneaux couverts en ${ms} ms`,
-      );
+      const what = mode.kind === "day" ? `${DAYS_LONG[mode.day]} refait` : mode.kind === "keep" && fixed.length ? `Semaine refaite (${fixed.length} créneau${fixed.length > 1 ? "x" : ""} gardé${fixed.length > 1 ? "s" : ""})` : "Semaine générée";
+      toast(res.unfilled ? `${what} : ${res.unfilled} place${res.unfilled > 1 ? "s" : ""} impossible${res.unfilled > 1 ? "s" : ""} à pourvoir` : `${what} en ${ms} ms`);
     }, 450);
   }
 
-  async function onGenerateClick() {
-    if (
-      shifts.length &&
-      !(await confirm({
-        title: "Remplacer la semaine ?",
-        text: `Les ${shifts.length} créneaux actuels seront remplacés par une nouvelle proposition. Vous pourrez revenir en arrière avec « Annuler ».`,
-        confirmLabel: "Générer",
-      }))
-    )
-      return;
-    runGenerate();
+  function onGenerateClick() {
+    if (shifts.length) setRegenOpen(true);
+    else runGenerate();
   }
 
   async function copyPrevious() {
@@ -153,13 +172,16 @@ export function PlanningView() {
     setShifts(week, (list) => {
       const s = list.find((x) => x.id === shiftId);
       if (!s) return list;
-      if (copy) return [...list, { ...s, id: uid("s"), employeeId, day: d }];
+      if (copy) return [...list, { ...s, id: uid("s"), employeeId, day: d, manual: true, reason: undefined }];
       if (s.employeeId === employeeId && s.day === d) return list;
-      return list.map((x) => (x.id === shiftId ? { ...x, employeeId, day: d } : x));
+      return list.map((x) => (x.id === shiftId ? { ...x, employeeId, day: d, manual: true, reason: undefined } : x));
     });
   }
 
-  function save(s: Shift) {
+  function save(s0: Shift) {
+    const old = shifts.find((x) => x.id === s0.id);
+    const changed = !old || old.employeeId !== s0.employeeId || old.day !== s0.day || old.start !== s0.start || old.end !== s0.end || old.postId !== s0.postId || old.breakMinutes !== s0.breakMinutes;
+    const s = changed ? { ...s0, manual: true, reason: undefined } : s0;
     setShifts(week, (list) => (list.some((x) => x.id === s.id) ? list.map((x) => (x.id === s.id ? s : x)) : [...list, s]));
     setEditing(null);
   }
@@ -172,7 +194,7 @@ export function PlanningView() {
       const date = toISODate(dateOfDay(week, shift.day));
       update((s) => ({ ...s, absences: [...s.absences, { id: uid("a"), employeeId: shift.employeeId, type: absence, start: date, end: date }] }), { record: false });
     }
-    setShifts(week, (list) => list.map((x) => (x.id === shift.id ? { ...x, employeeId } : x)));
+    setShifts(week, (list) => list.map((x) => (x.id === shift.id ? { ...x, employeeId, manual: true, reason: undefined } : x)));
     setEditing(null);
     toast(`${to?.firstName} remplace ${from?.firstName}`);
   }
@@ -215,8 +237,8 @@ export function PlanningView() {
             </Button>
           </div>
           <Button variant="primary" onClick={onGenerateClick} disabled={generating} className="flex-1 lg:flex-none">
-            {generating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-            Générer la semaine
+            {generating ? <Loader2 size={16} className="animate-spin" /> : shifts.length ? <RefreshCw size={16} /> : <Sparkles size={16} />}
+            {shifts.length ? "Régénérer" : "Générer la semaine"}
           </Button>
           <div className="hidden items-center gap-2 sm:flex">
           <Button onClick={copyPrevious}>
@@ -240,6 +262,7 @@ export function PlanningView() {
                   <MenuItem icon={Copy} label="Copier la semaine précédente" onClick={copyPrevious} />
                   <MenuItem icon={LayoutTemplate} label="Appliquer un modèle" onClick={() => (setMenuOpen(false), setTemplatesOpen(true))} />
                   <MenuItem icon={Share2} label="Partager le planning" onClick={() => (setMenuOpen(false), router.push("/partage"))} />
+                  <MenuItem icon={Eye} label="Voir comme un salarié" onClick={() => (setMenuOpen(false), router.push("/salarie"))} />
                   <div className="my-1 h-px bg-slate-100" />
                   <MenuItem
                     icon={Trash2}
@@ -259,12 +282,24 @@ export function PlanningView() {
         </div>
       </div>
 
+      {shifts.length === 0 && (
+        <div className="mb-4">
+          <RequestsCard />
+        </div>
+      )}
       {shifts.length === 0 ? (
-        <EmptyWeek onGenerate={runGenerate} onCopy={copyPrevious} onTemplates={() => setTemplatesOpen(true)} generating={generating} />
+        <EmptyWeek onGenerate={() => runGenerate()} onCopy={copyPrevious} onTemplates={() => setTemplatesOpen(true)} generating={generating} />
       ) : (
         <>
-          <div className="mb-4">
+          <div className="mb-4 space-y-3">
+            <PublishBar week={week} shifts={shifts} />
             <AlertsPanel alerts={alerts} onSelect={goToIssue} />
+            <RequestsCard />
+            <LaborCard week={week} shifts={shifts} />
+            <div className="flex flex-wrap items-center gap-2">
+              <FairnessBadge week={week} />
+              <LockSummary locked={kept.locked} people={kept.people} />
+            </div>
           </div>
 
           {unplanned > 0 && reinforcements.length > 0 && (
@@ -336,6 +371,8 @@ export function PlanningView() {
               onDay={setDay}
               onEdit={(s) => setEditing({ shift: s, isNew: false })}
               onAddSlot={addForSlot}
+              onWhyEmpty={(d, serviceId, postId) => setWhyEmpty({ day: d, serviceId, postId })}
+              lockedEmployees={lockedEmployees}
             />
           </div>
           <div className={cx(mobileView === "week" ? "block" : "hidden md:block")}>
@@ -347,6 +384,9 @@ export function PlanningView() {
               onEdit={(s) => setEditing({ shift: s, isNew: false })}
               onAdd={(e, d) => newShift(e, d)}
               onMove={onMove}
+              lockedEmployees={lockedEmployees}
+              onToggleLock={toggleLockEmployee}
+              onMissing={(d) => setWhyEmpty({ day: d })}
             />
             <p className="mt-3 hidden text-xs text-slate-500 md:block">
               Astuce : glissez un créneau pour le déplacer, maintenez <kbd className="rounded border border-slate-200 bg-white px-1">Alt</kbd> pour le dupliquer. Cliquez pour le modifier.
@@ -372,6 +412,8 @@ export function PlanningView() {
       )}
 
       <TemplatesModal open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
+      <RegenerateModal open={regenOpen} onClose={() => setRegenOpen(false)} onRun={runGenerate} defaultDay={day} kept={kept} />
+      <WhyEmptyModal slot={whyEmpty} onClose={() => setWhyEmpty(null)} shifts={shifts} lockedEmployees={lockedList} onAdd={addForSlot} />
     </div>
   );
 }

@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, Copy, ExternalLink, FileDown, Link2, MessageCircle } from "lucide-react";
+import { Check, Copy, ExternalLink, FileDown, History, Link2, MessageCircle } from "lucide-react";
+import { weekStatus, whatsappChanges } from "@/lib/publish";
+import { PublishBar } from "@/components/planning/WeekTools";
 import { useApp } from "@/lib/store";
 import { whatsappText } from "@/lib/share";
 import { formatWeekRange } from "@/lib/time";
@@ -14,7 +16,9 @@ export default function SharePage() {
   const toast = useToast();
   const week = state.currentWeek;
   const shifts = useMemo(() => state.plans[week] ?? [], [state.plans, week]);
-  const [mode, setMode] = useState<"day" | "person">("person");
+  const { status, changes } = weekStatus(state.weekMeta?.[week], shifts);
+  const [mode0, setMode] = useState<"day" | "person" | "changes" | null>(null);
+  const mode = mode0 ?? (status === "modified" ? "changes" : "person");
   const [origin, setOrigin] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
   // L'adresse du site n'est connue que dans le navigateur
@@ -24,7 +28,9 @@ export default function SharePage() {
   }, []);
 
   const link = `${origin}/p/${state.shareToken}`;
-  const text = whatsappText(state, week, shifts, mode, link);
+  const text = mode === "changes" ? whatsappChanges(state, week, changes, formatWeekRange(week), link) : whatsappText(state, week, shifts, mode, link);
+  const history = [...(state.weekMeta?.[week]?.changes ?? [])].reverse();
+  const name = (id: string) => state.employees.find((e) => e.id === id)?.firstName ?? "Salarié supprimé";
 
   async function copy(value: string, key: string) {
     try {
@@ -48,6 +54,10 @@ export default function SharePage() {
           Cette semaine est encore vide. <Link href="/planning" className="font-semibold underline">Générez-la d&apos;abord</Link> pour partager un planning complet.
         </div>
       )}
+
+      <div className="mb-4">
+        <PublishBar week={week} shifts={shifts} />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1.1fr]">
         <div className="min-w-0 space-y-4">
@@ -101,19 +111,20 @@ export default function SharePage() {
                 <div className="text-sm text-slate-600">À coller dans le groupe de l&apos;équipe.</div>
               </div>
             </div>
-            <div className="grid grid-cols-2 rounded-lg bg-slate-100 p-0.5 text-sm sm:text-xs" role="group" aria-label="Présentation du message">
-              {(["person", "day"] as const).map((m) => (
+            <div className={cx("grid rounded-lg bg-slate-100 p-0.5 text-sm sm:text-xs", status === "modified" ? "grid-cols-3" : "grid-cols-2")} role="group" aria-label="Présentation du message">
+              {(status === "modified" ? (["changes", "person", "day"] as const) : (["person", "day"] as const)).map((m) => (
                 <button
                   key={m}
                   aria-pressed={mode === m}
                   onClick={() => setMode(m)}
                   className={cx("min-h-11 rounded-md px-3 font-medium sm:min-h-8", mode === m ? "bg-white shadow-sm" : "text-slate-600")}
                 >
-                  {m === "person" ? "Par personne" : "Par jour"}
+                  {m === "person" ? "Par personne" : m === "day" ? "Par jour" : `Changements (${changes.length})`}
                 </button>
               ))}
             </div>
           </div>
+          {mode === "changes" && <p className="mb-2 text-xs text-slate-600">Seulement ce qui a changé depuis la publication, et pour qui. Pensez ensuite à « Publier les changements ».</p>}
           <pre className="mb-3 max-h-[420px] flex-1 overflow-auto rounded-xl bg-whatsapp-chat p-4 font-sans text-[13px] leading-relaxed whitespace-pre-wrap text-slate-800 [overflow-wrap:anywhere]">
             <span className="block rounded-lg bg-whatsapp-bubble p-3 shadow-xs">{text}</span>
           </pre>
@@ -127,6 +138,26 @@ export default function SharePage() {
           </div>
         </Card>
       </div>
+
+      {history.length > 0 && (
+        <Card className="mt-4 p-5">
+          <div className="mb-2 flex items-center gap-2 font-medium">
+            <History size={17} className="text-slate-500" /> Historique des changements après publication
+          </div>
+          <ul className="divide-y divide-slate-100 text-sm">
+            {history.slice(0, 30).map((c, i) => (
+              <li key={i} className="flex flex-col gap-0.5 py-2 sm:flex-row sm:gap-3">
+                <span className="shrink-0 text-xs text-slate-500 tabular-nums sm:w-36 sm:text-sm">
+                  {new Date(c.at).toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                </span>
+                <span>
+                  <b className="font-semibold">{name(c.employeeId)}</b> — {c.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <PrintSheet state={state} week={week} shifts={shifts} />
     </div>

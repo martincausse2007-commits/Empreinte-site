@@ -124,6 +124,67 @@ export default function SettingsPage() {
         </div>
       </Card>
 
+      <Card className="mb-4 px-5 pt-5 pb-2">
+        <h2 className="font-semibold">Délai de prévenance</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Quand vous changez un planning déjà publié, Quinzo vous prévient si c&apos;est trop tard. C&apos;est une alerte « à vérifier », jamais un blocage.
+        </p>
+        <div className="divide-y divide-slate-100">
+          <Question
+            title="Temps partiel (jours ouvrés)"
+            hint="Code du travail : 7 jours ouvrés, ou moins si un accord le prévoit (3 minimum)."
+            aside={<Stepper value={rules.noticePartTimeDays ?? 7} onChange={(v) => setRules({ noticePartTimeDays: v })} min={3} max={14} />}
+          />
+          <Question
+            title="Temps plein (jours)"
+            hint="Pas de chiffre unique dans la loi : il dépend de votre convention ou de vos contrats."
+            aside={<Stepper value={rules.noticeFullTimeDays ?? 7} onChange={(v) => setRules({ noticeFullTimeDays: v })} min={0} max={14} />}
+          />
+        </div>
+        <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Hôtels-cafés-restaurants : 7 jours, avec des réductions possibles en cas exceptionnel. À vérifier avec votre comptable.
+        </p>
+      </Card>
+
+      <Card className="mb-4 px-5 pt-5 pb-2">
+        <h2 className="font-semibold">Masse salariale</h2>
+        <p className="mt-1 text-sm text-slate-600">Pour comparer le coût du planning au chiffre d&apos;affaires prévu que vous saisissez dans le planning.</p>
+        <div className="divide-y divide-slate-100">
+          <Question
+            title="Objectif (% du CA)"
+            hint="Au-dessus, le ratio passe en orange."
+            aside={
+              <span className="relative w-24 shrink-0">
+                <input
+                  inputMode="numeric"
+                  aria-label="Objectif de masse salariale en pourcentage du chiffre d'affaires"
+                  className={cx(inputClass, "pr-7 text-right tabular-nums")}
+                  value={rules.laborTargetPercent ?? 30}
+                  onChange={(e) => setRules({ laborTargetPercent: Math.min(100, Math.max(0, Number(e.target.value.replace(/\D/g, "")) || 0)) })}
+                />
+                <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-sm text-slate-500">%</span>
+              </span>
+            }
+          />
+          <Question
+            title="Charges patronales (% du brut)"
+            hint="0 = salaires bruts seuls. Le bon taux dépend de vos aides : demandez-le à votre comptable."
+            aside={
+              <span className="relative w-24 shrink-0">
+                <input
+                  inputMode="numeric"
+                  aria-label="Charges patronales en pourcentage"
+                  className={cx(inputClass, "pr-7 text-right tabular-nums")}
+                  value={rules.employerChargesPercent ?? 0}
+                  onChange={(e) => setRules({ employerChargesPercent: Math.min(100, Math.max(0, Number(e.target.value.replace(/\D/g, "")) || 0)) })}
+                />
+                <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-sm text-slate-500">%</span>
+              </span>
+            }
+          />
+        </div>
+      </Card>
+
       <Card className="mb-4 p-5">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-semibold">Postes</h2>

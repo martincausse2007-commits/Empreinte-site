@@ -16,7 +16,9 @@
 import type { AbsenceType, AppState, Employee, Rules, Shift } from "../types";
 import { ABSENCE_TYPES, absencesForWeek, expectedHours } from "../absences";
 import { forWeek } from "../week";
-import { DAYS, addWeeks, formatHours } from "../time";
+import { DAYS, addWeeks, dateOfDay, formatHours, formatTime, toMinutes } from "../time";
+import { diffWeek } from "../publish";
+import { holidaysInWeek, isHolidayClosed } from "../holidays";
 import { absRange, coverage, dayStats, isUnavailable, rulesOf, servicesOfShift, shiftHours } from "../rules";
 
 export const LEGAL = {
@@ -47,7 +49,8 @@ export type IssueKind =
   | "offPost"
   | "weekend"
   | "uncovered"
-  | "absence";
+  | "absence"
+  | "notice";
 
 export type Severity = "error" | "warning";
 
@@ -81,6 +84,7 @@ export const ISSUE_LABELS: Record<IssueKind, string> = {
   weekend: "Week-ends",
   uncovered: "Poste non couvert",
   absence: "Absence",
+  notice: "Délai de prévenance",
 };
 
 /** Règles « interdites » : le générateur ne les enfreint jamais. */
@@ -240,6 +244,17 @@ export function checkEmployee(
     if (away) {
       add({ id: `absence-${s.id}`, kind: "absence", severity: "error", title: `${name} est absent·e (${ABSENCE_TYPES[away].label.toLowerCase()})`, detail: `${DAYS[s.day]} : un créneau est planifié pendant une absence.`, day: s.day, shiftIds: [s.id] });
     }
+    // Plages autorisées (ex. étudiant : pas avant 17 h en semaine)
+    for (const w of e.prefs?.timeWindows ?? []) {
+      if (!w.days.includes(s.day)) continue;
+      const [a, b] = absRange({ ...s, day: 0 });
+      const tooEarly = w.from && a < toMinutes(w.from);
+      const tooLate = w.to && b > (toMinutes(w.to) <= toMinutes(w.from ?? "00:00") ? toMinutes(w.to) + 1440 : toMinutes(w.to));
+      if (tooEarly || tooLate) {
+        const rule = w.from && w.to ? `entre ${formatTime(w.from)} et ${formatTime(w.to)}` : w.from ? `à partir de ${formatTime(w.from)}` : `jusqu'à ${formatTime(w.to!)}`;
+        add({ id: `window-${s.id}`, kind: "unavailable", severity: "error", title: `${name} n'est pas disponible à ces horaires`, detail: `${DAYS[s.day]} : disponible seulement ${rule}${w.label ? ` (${w.label})` : ""}.`, day: s.day, shiftIds: [s.id] });
+      }
+    }
     const touched = servicesOfShift(s, state.services);
     if (isUnavailable(e, s.day) || touched.some((sv) => isUnavailable(e, s.day, sv.id))) {
       add({ id: `unavailable-${s.id}`, kind: "unavailable", severity: "error", title: `${name} est indisponible`, detail: `${DAYS[s.day]}${touched.length ? " " + touched.map((t) => t.name.toLowerCase()).join(" / ") : ""} : un créneau est planifié sur une indisponibilité.`, day: s.day, shiftIds: [s.id] });
@@ -259,7 +274,59 @@ export function checkEmployee(
 }
 
 /** Vérifie toute la semaine : chaque personne, puis la couverture des besoins. */
-export function checkWeek(state0: AppState, shifts: Shift[], week = state0.currentWeek): Issue[] {
+/** Jours ouvrés de l'établissement (jours d'ouverture, hors fériés fermés) strictement entre deux dates. */
+export function openDaysBetween(state: Pick<AppState, "establishment">, from: Date, to: Date): number {
+  let n = 0;
+  const d = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 1);
+  const end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+  for (; d < end; d.setDate(d.getDate() + 1)) {
+    const day = (d.getDay() + 6) % 7;
+    const opening = state.establishment.opening ?? [];
+    const open = opening.length ? (opening[day]?.length ?? 0) > 0 : day < 6;
+    const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - day);
+    const iso = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+    const h = holidaysInWeek(iso).get(day);
+    if (open && !(h && isHolidayClosed(state, h.id))) n++;
+  }
+  return n;
+}
+
+/**
+ * Délai de prévenance : un planning déjà publié est modifié trop près de la date.
+ * Temps partiel : jours ouvrés (Code du travail : 7, un accord peut descendre à 3).
+ * Temps plein : jours calendaires, valeur choisie par l'établissement.
+ * Toujours en « à vérifier » : des circonstances exceptionnelles peuvent le permettre.
+ */
+export function noticeIssues(state: AppState, week: string, shifts: Shift[], today: Date): Issue[] {
+  const meta = state.weekMeta?.[week];
+  if (!meta || meta.status !== "published" || !meta.snapshot) return [];
+  const rules = rulesOf(state);
+  const out: Issue[] = [];
+  const now = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  for (const c of diffWeek(meta.snapshot, shifts)) {
+    const e = state.employees.find((x) => x.id === c.employeeId);
+    if (!e) continue;
+    const date = dateOfDay(week, c.day);
+    if (date < now) continue; // jour déjà passé
+    const partTime = e.contractHours < 35;
+    const need = partTime ? rules.noticePartTimeDays ?? 7 : rules.noticeFullTimeDays ?? 7;
+    const have = partTime ? openDaysBetween(state, now, date) : Math.round((date.getTime() - now.getTime()) / 86400000);
+    if (have >= need) continue;
+    out.push({
+      id: `notice-${e.id}-${c.day}`,
+      kind: "notice",
+      severity: "warning",
+      title: `${e.firstName} : changement trop tardif`,
+      detail: `${DAYS[c.day]} changé après publication (${c.after === "repos" ? "repos" : c.after}, avant : ${c.before}) : ${have} jour${have > 1 ? "s" : ""}${partTime ? " ouvré" + (have > 1 ? "s" : "") : ""} avant, pour ${need} demandé${need > 1 ? "s" : ""} (${partTime ? "temps partiel" : "temps plein"}). Possible seulement dans les cas prévus par votre convention : à vérifier avec votre comptable.`,
+      employeeId: e.id,
+      day: c.day,
+      shiftIds: shifts.filter((s) => s.employeeId === e.id && s.day === c.day).map((s) => s.id),
+    });
+  }
+  return out;
+}
+
+export function checkWeek(state0: AppState, shifts: Shift[], week = state0.currentWeek, opts: { today?: Date } = {}): Issue[] {
   const state = forWeek(state0, week); // jours fériés fermés : rien à couvrir
   const prevWeek = state.plans?.[addWeeks(week, -1)] ?? [];
   const absences = absencesForWeek(state, week);
@@ -278,6 +345,7 @@ export function checkWeek(state0: AppState, shifts: Shift[], week = state0.curre
       issues.push({ id: `uncovered-${c.day}-${c.serviceId}-${c.postId}`, kind: "uncovered", severity: "warning", title: `${DAYS[c.day]} ${svName(c.serviceId)} : ${postName(c.postId)} non couvert`, detail: `Il manque ${plural(missing, "personne")} (${c.assigned}/${c.needed}).`, day: c.day });
     }
   }
+  issues.push(...noticeIssues(state0, week, shifts, opts.today ?? new Date()));
   // Rouge d'abord, puis ambre
   return issues.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === "error" ? -1 : 1));
 }

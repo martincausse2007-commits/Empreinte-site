@@ -9,6 +9,7 @@ import { Logo } from "../Logo";
 import { cx } from "../ui";
 import { useApp } from "@/lib/store";
 import { EstablishmentSwitcher } from "./EstablishmentSwitcher";
+import { FeedbackButton } from "../FeedbackButton";
 
 const NAV = [
   { href: "/planning", label: "Planning", icon: CalendarDays, mobile: true },
@@ -84,6 +85,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-3 gap-y-2">
             <span className="rounded-full bg-brand-600 px-2 py-0.5 text-xs font-semibold text-white">Démo</span>
             <span className="flex-1">Vos données restent sur cet appareil.</span>
+            <FeedbackButton className="text-brand-800" />
             <Link href="/inscription?depuis=demo" className="inline-flex min-h-11 items-center font-semibold underline underline-offset-2 sm:min-h-0">
               Créer un compte et garder ces données
             </Link>
