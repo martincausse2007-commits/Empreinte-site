@@ -1,0 +1,15 @@
+SONS PERSONNALISÉS (optionnel)
+==============================
+Par défaut, tous les sons sont générés par le jeu (Web Audio) : ce dossier peut rester vide.
+
+Pour remplacer un son, déposez ici un fichier mp3 portant exactement l'un de ces noms :
+
+  boing.mp3      une boule est lâchée
+  choc.mp3       deux boules se touchent (son court, discret)
+  fusion1.mp3    fusion -> niveau 2  (do)
+  fusion2.mp3    ... niveau 3        (ré)
+  fusion3.mp3 … fusion8.mp3          (mi, fa, sol, la, si, do aigu)
+  victoire.mp3   fanfare du dernier niveau
+
+Un son absent = le son généré est utilisé. Les noms se changent en haut de js/game.js (FICHIERS_SONS).
+Remarque : les mp3 ne se chargent que si le jeu est ouvert via une adresse http(s), pas en double-cliquant sur le fichier.
